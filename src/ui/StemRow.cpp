@@ -177,6 +177,22 @@ void StemRow::drawFader (juce::Graphics& g)
     g.setColour (Theme::col (Theme::kBorder));
     g.drawLine (unityX, track.getY() + 2, unityX, track.getBottom() - 2, 1.f);
 
+    // "0" caption under the unity tick. Tiny, tertiary text so it reads as
+    // a scale marker rather than competing with the dB readout on the
+    // right of the row. Clipped to the row bounds in case the fader sits
+    // hard against the bottom of the row.
+    {
+        constexpr int kCapW = 12;
+        constexpr int kCapH = 10;
+        const int capX = juce::roundToInt (unityX) - kCapW / 2;
+        const int capY = juce::jmin (juce::roundToInt (track.getBottom()) + 1,
+                                     getLocalBounds().getBottom() - kCapH);
+        const juce::Rectangle<int> capR (capX, capY, kCapW, kCapH);
+        g.setColour (Theme::col (Theme::kTextTertiary));
+        g.setFont (juce::Font (juce::FontOptions (9.0f)));
+        g.drawText ("0", capR, juce::Justification::centred, false);
+    }
+
     // Filled track
     const float fillW = track.getWidth() * frac;
     g.setColour (Theme::stemColor (idx, session.mixState().stemCount()));

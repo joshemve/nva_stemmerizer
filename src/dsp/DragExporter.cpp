@@ -34,6 +34,20 @@ namespace
         return s.removeCharacters ("<>:\"/\\|?*");
     }
 
+    /// File extension (with leading dot) for the given encoder format.
+    juce::String extensionFor (AudioFileIO::ExportFormat fmt)
+    {
+        switch (fmt)
+        {
+            case AudioFileIO::ExportFormat::Wav16:
+            case AudioFileIO::ExportFormat::Wav24:
+            case AudioFileIO::ExportFormat::Wav32f: return ".wav";
+            case AudioFileIO::ExportFormat::Flac:   return ".flac";
+            case AudioFileIO::ExportFormat::Mp3:    return ".mp3";
+        }
+        return ".wav";
+    }
+
     /// Render the in-memory mix (with mix state applied) into one
     /// interleaved buffer at the snapshot's sample rate.
     std::vector<float> renderMixdown (const StemSession::Snapshot& snap,
@@ -121,22 +135,29 @@ void DragExporter::purgeOldScratchDirs()
 bool DragExporter::dragStem (juce::Component*               source,
                              const StemSession::Snapshot&   snap,
                              int                            idx,
-                             const std::string&             sourceBasename)
+                             const std::string&             sourceBasename,
+                             AudioFileIO::ExportFormat      format,
+                             std::string*                   outError)
 {
-    if (idx < 0 || idx >= (int) snap.stems.size()) return false;
+    if (idx < 0 || idx >= (int) snap.stems.size())
+    {
+        if (outError) *outError = "Invalid stem index.";
+        return false;
+    }
     const auto& s = snap.stems[(size_t) idx];
 
     const auto out = scratchDir().getChildFile (
-        safeBasename (sourceBasename) + " - " + juce::String (s.name) + ".wav");
+        safeBasename (sourceBasename) + " - " + juce::String (s.name) + extensionFor (format));
 
     std::string err;
     if (! AudioFileIO::encode (out.getFullPathName().toStdString(),
-                                AudioFileIO::ExportFormat::Wav24,
+                                format,
                                 s.interleaved.data(),
                                 (long long) s.interleaved.size() / s.numChannels,
                                 s.numChannels,
                                 snap.sampleRate, err))
     {
+        if (outError) *outError = err;
         return false;
     }
 
@@ -150,14 +171,53 @@ bool DragExporter::dragStem (juce::Component*               source,
 
 bool DragExporter::dragAllStems (juce::Component*             source,
                                  const StemSession::Snapshot& snap,
-                                 const std::string&           sourceBasename)
+                                 const std::string&           sourceBasename,
+                                 AudioFileIO::ExportFormat    format,
+                                 std::string*                 outError)
 {
     juce::StringArray files;
+    std::string errors;
     for (size_t i = 0; i < snap.stems.size(); ++i)
     {
         const auto& s = snap.stems[i];
         const auto out = scratchDir().getChildFile (
-            safeBasename (sourceBasename) + " - " + juce::String (s.name) + ".wav");
+            safeBasename (sourceBasename) + " - " + juce::String (s.name) + extensionFor (format));
+        std::string err;
+        if (! AudioFileIO::encode (out.getFullPathName().toStdString(),
+                                    format,
+                                    s.interleaved.data(),
+                                    (long long) s.interleaved.size() / s.numChannels,
+                                    s.numChannels,
+                                    snap.sampleRate, err))
+        {
+            if (! errors.empty()) errors += "\n";
+            errors += s.name + ": " + err;
+            continue;
+        }
+        files.add (out.getFullPathName());
+    }
+    if (outError) *outError = errors;
+    if (files.isEmpty()) return false;
+    if (source)
+        juce::DragAndDropContainer::performExternalDragDropOfFiles (files, false, source);
+    else
+        juce::DragAndDropContainer::performExternalDragDropOfFiles (files, false);
+    return true;
+}
+
+bool DragExporter::dragStems (juce::Component*               source,
+                              const StemSession::Snapshot&   snap,
+                              const std::vector<int>&        indices,
+                              const std::string&             sourceBasename)
+{
+    juce::StringArray files;
+    for (int idx : indices)
+    {
+        if (idx < 0 || idx >= (int) snap.stems.size()) continue;
+        const auto& s = snap.stems[(size_t) idx];
+        const auto out = scratchDir().getChildFile (
+            safeBasename (sourceBasename) + " - " + juce::String (s.name)
+            + extensionFor (AudioFileIO::ExportFormat::Wav24));
         std::string err;
         if (! AudioFileIO::encode (out.getFullPathName().toStdString(),
                                     AudioFileIO::ExportFormat::Wav24,
@@ -179,22 +239,31 @@ bool DragExporter::dragAllStems (juce::Component*             source,
 bool DragExporter::dragMixdown (juce::Component*             source,
                                 const StemSession::Snapshot& snap,
                                 const StemMixState&          mix,
-                                const std::string&           sourceBasename)
+                                const std::string&           sourceBasename,
+                                AudioFileIO::ExportFormat    format,
+                                std::string*                 outError)
 {
     auto buf = renderMixdown (snap, mix);
-    if (buf.empty()) return false;
+    if (buf.empty())
+    {
+        if (outError) *outError = "Empty mixdown buffer.";
+        return false;
+    }
 
     const auto out = scratchDir().getChildFile (
-        safeBasename (sourceBasename) + " - mixdown.wav");
+        safeBasename (sourceBasename) + " - mixdown" + extensionFor (format));
 
     std::string err;
     if (! AudioFileIO::encode (out.getFullPathName().toStdString(),
-                                AudioFileIO::ExportFormat::Wav24,
+                                format,
                                 buf.data(),
                                 snap.numFrames,
                                 snap.numChannels,
                                 snap.sampleRate, err))
+    {
+        if (outError) *outError = err;
         return false;
+    }
 
     juce::StringArray files; files.add (out.getFullPathName());
     if (source)

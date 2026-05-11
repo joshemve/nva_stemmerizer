@@ -167,12 +167,33 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
 
     addAndMakeVisible (jobList);
     jobList.setQueue (&processor.jobQueue());
-    processor.jobQueue().setChangeCallback ([this] { jobList.refresh(); });
+    // When jobs come and go, also re-run the editor layout so the queue
+    // panel grows / shrinks / disappears based on activity (see resized()
+    // for the rules — empty -> hidden, 1 job -> slim strip, 2+ -> full).
+    processor.jobQueue().setChangeCallback ([this]
+    {
+        jobList.refresh();
+        resized();
+    });
 
     // ---- right side: player ----
     addAndMakeVisible (transport);
     addAndMakeVisible (loopRegion);
     addAndMakeVisible (mixer);
+
+    // The mixer's drag pills need the currently-selected export format to
+    // pass through to DragExporter. We read it lazily from the processor
+    // ValueTree so any later format-selector change is picked up without
+    // wiring a separate listener here.
+    mixer.formatProvider = [this]
+    {
+        const auto k = processor.state().getProperty ("exportFormat").toString();
+        if (k == "wav16")  return dsp::AudioFileIO::ExportFormat::Wav16;
+        if (k == "wav32f") return dsp::AudioFileIO::ExportFormat::Wav32f;
+        if (k == "flac")   return dsp::AudioFileIO::ExportFormat::Flac;
+        if (k == "mp3")    return dsp::AudioFileIO::ExportFormat::Mp3;
+        return dsp::AudioFileIO::ExportFormat::Wav24;
+    };
 
     sessionListener = processor.session().addListener ([this] { onSessionChanged(); });
 
@@ -198,7 +219,11 @@ void StemmerizerEditor::timerCallback()
 
 void StemmerizerEditor::onSessionChanged()
 {
+    // Layout flips between "no session" (drop zone full-width, no right
+    // column) and "session loaded" (split body). The mixer also needs to
+    // rebuild its rows whenever the snapshot changes.
     mixer.rebuild();
+    resized();
     repaint();
 }
 
@@ -218,6 +243,18 @@ bool StemmerizerEditor::keyPressed (const juce::KeyPress& k)
         || k.getKeyCode() == 'L')
     {
         transport.toggleLoop();
+        return true;
+    }
+    if (k.getTextCharacter() == 'a' || k.getTextCharacter() == 'A'
+        || k.getKeyCode() == 'A')
+    {
+        // Flip the A/B compare. Auto-start playback if paused — a silent
+        // toggle gives the user no feedback that anything happened, and
+        // pressing 'A' clearly signals an intent to hear the difference.
+        auto& sess = processor.session();
+        sess.setPlayOriginal (! sess.playOriginal());
+        if (! processor.transport().isPlaying()) processor.transport().play();
+        mixer.repaint();
         return true;
     }
     return false;
@@ -252,10 +289,33 @@ void StemmerizerEditor::resized()
 
     // ---- body ----
     r.reduce (ui::Theme::kPad, ui::Theme::kPad);
-    const int leftWidth = juce::jmax (380, r.getWidth() * 4 / 10);
-    auto left  = r.removeFromLeft (leftWidth);
-    r.removeFromLeft (ui::Theme::kPad);
-    auto right = r;
+
+    // Progressive disclosure: until a session is loaded, the right-hand
+    // player column (transport + loop region + stem mixer) has nothing
+    // useful to show. Hide it entirely so the drop zone becomes the
+    // single focal point of the empty state — the user's only next
+    // action is "drop a file". After a split completes the column flips
+    // back in (see onSessionChanged -> resized()).
+    const bool sessionLoaded = processor.session().isLoaded();
+    transport .setVisible (sessionLoaded);
+    loopRegion.setVisible (sessionLoaded);
+    mixer     .setVisible (sessionLoaded);
+
+    juce::Rectangle<int> left;
+    juce::Rectangle<int> right;
+    if (sessionLoaded)
+    {
+        const int leftWidth = juce::jmax (380, r.getWidth() * 4 / 10);
+        left  = r.removeFromLeft (leftWidth);
+        r.removeFromLeft (ui::Theme::kPad);
+        right = r;
+    }
+    else
+    {
+        // No session yet — full-width left column, no right column.
+        left  = r;
+        right = {};
+    }
 
     // ---- Left column: settings (top, compact) → drop zone (middle, hero)
     //                    → job queue (bottom).
@@ -267,13 +327,36 @@ void StemmerizerEditor::resized()
         auto strip = left.removeFromTop (stripH);
         left.removeFromTop (ui::Theme::kGap);
 
-        // Job queue at the bottom.
-        auto jobs = left.removeFromBottom (300);
-        left.removeFromBottom (ui::Theme::kGap);
-        jobList.setBounds (jobs);
+        // --- Dynamic queue panel ---
+        // 0 jobs  -> hidden (no panel at all, drop zone gets all the space)
+        // 1 job   -> slim 1-row strip (~70 px) at the bottom, no header
+        // 2+ jobs -> full queue panel (300 px) with header + scrollable list
+        const int totalJobs  = jobList.totalJobCount();
+        const int activeJobs = jobList.activeJobCount();
+        const bool compact   = (totalJobs == 1);
+        const bool hidden    = (totalJobs == 0);
 
-        // Drop zone fills the middle — visual hero.
+        jobList.setCompactMode (compact);
+        jobList.setVisible (! hidden);
+
+        if (! hidden)
+        {
+            const int queueH = compact ? 70 : 300;
+            auto jobs = left.removeFromBottom (queueH);
+            left.removeFromBottom (ui::Theme::kGap);
+            jobList.setBounds (jobs);
+        }
+        else
+        {
+            jobList.setBounds ({});   // off-screen / size 0
+        }
+
+        // Drop zone fills the middle — visual hero. When there's NO queue
+        // it occupies the entire remaining column, which gives the empty
+        // state a strong, single focal point for onboarding.
         dropZone.setBounds (left);
+
+        juce::ignoreUnused (activeJobs);   // (reserved for future "queue badge" UI)
 
         // --- Settings strip layout ---
         constexpr int kLabelH = 14;
@@ -335,12 +418,23 @@ void StemmerizerEditor::resized()
     }
 
     // ---- Right column: transport (top), loop strip, mixer fills the rest. ----
+    // Only laid out when the right column is actually visible (i.e. a
+    // session is loaded). Otherwise the components are hidden and their
+    // bounds don't matter; we zero them out so nothing stale paints if
+    // visibility is toggled back later.
+    if (sessionLoaded && right.getWidth() > 0)
     {
         transport.setBounds (right.removeFromTop (56));
         right.removeFromTop (ui::Theme::kPadSm);
         loopRegion.setBounds (right.removeFromTop (40));
         right.removeFromTop (ui::Theme::kGap);
         mixer.setBounds (right);
+    }
+    else
+    {
+        transport .setBounds ({});
+        loopRegion.setBounds ({});
+        mixer     .setBounds ({});
     }
 }
 

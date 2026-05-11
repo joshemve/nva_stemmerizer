@@ -13,6 +13,11 @@ namespace
     constexpr int kRowGap    = 6;
     constexpr int kHeaderH   = 32;
     constexpr int kFooterH   = 44;
+
+    // Middle dot separator (U+00B7). JUCE's String(const char*) parses raw
+    // bytes as Latin-1, so the UTF-8 sequence \xc2\xb7 has to go through
+    // fromUTF8 to yield the actual dot.
+    static const juce::String kMiddleDot = juce::String::fromUTF8 (" \xc2\xb7 ");
 }
 
 StemMixerPanel::StemMixerPanel (dsp::StemSession& s, dsp::Transport& t)
@@ -35,6 +40,26 @@ void StemMixerPanel::rebuild()
         row->refreshFromSession();
         rows.push_back (std::move (row));
     }
+
+    // Run BPM / key detection on the original mix. Synchronous on the
+    // message thread is acceptable: rebuild() only fires when a split
+    // completes (rare), and a few-minute song at 44.1 kHz analyses well
+    // under a second with these parameters. Conservative thresholds inside
+    // the analyzers ensure we surface nothing rather than misleading info.
+    bpmInfo.reset();
+    keyInfo.reset();
+    if (snap && ! snap->original.empty())
+    {
+        bpmInfo = dsp::analyzeBpm (snap->original.data(),
+                                   snap->numFrames,
+                                   snap->numChannels,
+                                   snap->sampleRate);
+        keyInfo = dsp::analyzeKey (snap->original.data(),
+                                   snap->numFrames,
+                                   snap->numChannels,
+                                   snap->sampleRate);
+    }
+
     resized();
     repaint();
 }
@@ -56,9 +81,28 @@ void StemMixerPanel::paint (juce::Graphics& g)
 
     g.setColour (Theme::col (Theme::kTextTertiary));
     g.setFont (Theme::caption());
-    g.drawText (rows.empty() ? juce::String ("drop a file to begin")
-                             : juce::String (rows.size()) + " stems loaded",
-                header, juce::Justification::centredRight);
+
+    juce::String headerRight;
+    if (rows.empty())
+    {
+        headerRight = "drop a file to begin";
+    }
+    else
+    {
+        // "N stems" if BPM or key is shown, otherwise "N stems loaded".
+        const bool hasBpm = bpmInfo.has_value();
+        const bool hasKey = keyInfo.has_value();
+        if (hasBpm || hasKey)
+            headerRight = juce::String ((int) rows.size()) + " stems";
+        else
+            headerRight = juce::String ((int) rows.size()) + " stems loaded";
+
+        if (hasBpm)
+            headerRight += kMiddleDot + juce::String (juce::roundToInt (bpmInfo->bpm)) + " BPM";
+        if (hasKey)
+            headerRight += kMiddleDot + dsp::keyName (keyInfo);
+    }
+    g.drawText (headerRight, header, juce::Justification::centredRight);
 
     if (rows.empty())
     {
@@ -186,18 +230,31 @@ void StemMixerPanel::mouseMove (const juce::MouseEvent& e)
 
 void StemMixerPanel::requestDragForStem (int idx)
 {
-    auto snap = session.currentSnapshot();
-    if (! snap) return;
-    const auto base = std::filesystem::path (session.sourceFilePath()).stem().string();
-    dsp::DragExporter::dragStem (this, *snap, idx, base);
+    // DragExporter writes a temp WAV then triggers Windows OLE drag-and-
+    // drop via performExternalDragDropOfFiles. Both can throw (bad_alloc,
+    // disk full, OLE init failure). This function is called from a
+    // mouseDrag event whose dispatcher is noexcept — an escaping
+    // exception kills the host.
+    try
+    {
+        auto snap = session.currentSnapshot();
+        if (! snap) return;
+        const auto base = std::filesystem::path (session.sourceFilePath()).stem().string();
+        dsp::DragExporter::dragStem (this, *snap, idx, base);
+    }
+    catch (...) { /* user can retry; don't crash the DAW */ }
 }
 
 void StemMixerPanel::requestDragAll()
 {
-    auto snap = session.currentSnapshot();
-    if (! snap) return;
-    const auto base = std::filesystem::path (session.sourceFilePath()).stem().string();
-    dsp::DragExporter::dragAllStems (this, *snap, base);
+    try
+    {
+        auto snap = session.currentSnapshot();
+        if (! snap) return;
+        const auto base = std::filesystem::path (session.sourceFilePath()).stem().string();
+        dsp::DragExporter::dragAllStems (this, *snap, base);
+    }
+    catch (...) { /* same */ }
 }
 
 } // namespace stemmerizer::ui

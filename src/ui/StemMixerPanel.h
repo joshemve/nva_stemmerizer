@@ -4,11 +4,13 @@
 #include "StemRow.h"
 #include "../dsp/StemSession.h"
 #include "../dsp/Transport.h"
+#include "../dsp/MusicAnalysis.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <vector>
 #include <memory>
+#include <optional>
 
 namespace stemmerizer::ui
 {
@@ -45,6 +47,11 @@ private:
     juce::Rectangle<int>  abBounds;            // union of the two halves
     juce::Rectangle<int>  abStemsBounds;       // left half — "STEMS"
     juce::Rectangle<int>  abOriginalBounds;    // right half — "ORIGINAL"
+
+    // Optional musical analysis populated on rebuild(); shown in the header
+    // right-side caption when present (e.g. "4 stems · 124 BPM · C minor").
+    std::optional<dsp::BpmResult>  bpmInfo;
+    std::optional<dsp::KeyResult>  keyInfo;
 };
 
 } // namespace stemmerizer::ui

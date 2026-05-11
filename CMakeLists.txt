@@ -170,6 +170,8 @@ target_sources(Stemmerizer PRIVATE
     src/dsp/MixRenderer.h
     src/dsp/DragExporter.cpp
     src/dsp/DragExporter.h
+    src/dsp/MusicAnalysis.cpp
+    src/dsp/MusicAnalysis.h
 
     # ---- UI ----
     src/ui/Theme.h

@@ -4,8 +4,24 @@
 #include "dsp/MixRenderer.h"
 #include "dsp/DragExporter.h"
 
+#include <filesystem>
+
 namespace stemmerizer
 {
+
+namespace
+{
+    /// File extension corresponding to one of our exportFormat tokens, kept
+    /// in sync with the table in JobQueue.cpp (parseFormat / formatExtension).
+    /// Centralised here so RecentProjects can reconstruct the on-disk stem
+    /// paths without having to peek into the worker.
+    juce::String extensionForFormat (const juce::String& fmt)
+    {
+        if (fmt == "flac") return ".flac";
+        if (fmt == "mp3")  return ".mp3";
+        return ".wav";  // wav16 / wav24 / wav32f all share .wav
+    }
+}
 
 StemmerizerProcessor::StemmerizerProcessor()
     : juce::AudioProcessor (BusesProperties()
@@ -28,6 +44,60 @@ StemmerizerProcessor::StemmerizerProcessor()
                                       const dsp::SplitResult& result)
     {
         sess.loadFromResult (path, std::move (original), sr, ch, frames, result);
+
+        // ---- Recent-splits bookkeeping ---------------------------------
+        // Append this finished split to the recent list. We don't have the
+        // outputDir / format / stem-paths in the FinishedCallback signature
+        // this round — JobQueue's callback was designed around the playable
+        // result, not the disk artefacts. Read them out of the ValueTree
+        // instead (same source the job was constructed from). They MAY have
+        // drifted between split start and finish (user changed selector
+        // mid-run); for v1 we accept that, ship the feature, and revisit.
+        //
+        // TODO: pass outputDir + exportFormat + the list of written stem
+        // paths through JobQueue::FinishedCallback so we don't have to
+        // reconstruct them here and so concurrent format/folder changes
+        // can't desync the recent entry from what's actually on disk.
+        if (result.success && ! result.stems.empty())
+        {
+            dsp::RecentEntry entry;
+
+            const auto outputDir = tree.getProperty ("outputDir").toString();
+            const auto format    = tree.getProperty ("exportFormat").toString();
+            const auto ext       = extensionForFormat (format);
+
+            std::string basenameStd;
+            try { basenameStd = std::filesystem::path (path).stem().string(); }
+            catch (...) { basenameStd.clear(); }
+            const juce::String basename (basenameStd);
+
+            const auto nowMs = juce::Time::getCurrentTime().toMilliseconds();
+            static std::atomic<int> counter { 0 };
+            entry.id            = juce::String (nowMs) + "-"
+                                + juce::String (counter.fetch_add (1));
+            entry.inputPath     = juce::String (path);
+            entry.inputBasename = basename;
+            entry.outputDir     = outputDir;
+            entry.timestamp     = nowMs;
+            entry.format        = format.isNotEmpty() ? format : juce::String ("wav24");
+
+            // Reconstruct stem-on-disk paths using the SAME layout the
+            // worker writes them in (see JobQueue.cpp ~L322): "<outputDir>/
+            // <basename> - <stemName><ext>".
+            const juce::File outDir (outputDir);
+            for (const auto& s : result.stems)
+            {
+                const juce::String stemName (s.name);
+                entry.stemNames.add (stemName);
+                entry.stemFiles.add (
+                    outDir.getChildFile (basename + " - " + stemName + ext)
+                          .getFullPathName());
+            }
+
+            recents.add (std::move (entry));
+        }
+        // ---------------------------------------------------------------
+
         tport.prepare (frames, sr);
     });
 

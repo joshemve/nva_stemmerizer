@@ -8,9 +8,9 @@
 namespace stemmerizer::ui
 {
 
-/// Slim horizontal strip showing total length, current position, and
-/// (when loop is on) draggable start/end markers. Click to seek; drag
-/// either edge to resize the loop region.
+/// Horizontal scrub strip showing total length, current position, time
+/// ticks, and (when loop is on) draggable start/end markers. Click to
+/// seek; drag either edge to resize the loop region.
 class LoopRegionView : public juce::Component, private juce::Timer
 {
 public:
@@ -26,6 +26,7 @@ public:
 private:
     void timerCallback() override;
     long long sampleAtX (int x) const;
+    void      drawTimeTicks (juce::Graphics&, const juce::Rectangle<float>& area) const;
 
     dsp::Transport& transport;
 

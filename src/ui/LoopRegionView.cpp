@@ -42,6 +42,10 @@ void LoopRegionView::paint (juce::Graphics& g)
         return;
     }
 
+    // Time ticks underneath everything. They give the strip enough visual
+    // density to feel like a real scrub bar instead of a 2-px bug.
+    drawTimeTicks (g, bounds);
+
     const float w = bounds.getWidth();
     const float xS = (float) transport.loopStart() / (float) len * w + bounds.getX();
     const float xE = (float) transport.loopEnd()   / (float) len * w + bounds.getX();
@@ -161,6 +165,62 @@ void LoopRegionView::mouseDrag (const juce::MouseEvent& e)
 void LoopRegionView::mouseUp (const juce::MouseEvent&)
 {
     mode = DragMode::None;
+}
+
+void LoopRegionView::drawTimeTicks (juce::Graphics& g,
+                                    const juce::Rectangle<float>& area) const
+{
+    // Pick a tick spacing that yields ~6-10 majors across the strip so it
+    // never gets visually busy. Track length is unknown at compile time so
+    // we round to a nice musical/clock interval (1s/2s/5s/10s/30s/60s/...).
+    const int sr = std::max (1, transport.sampleRate());
+    const double totalSec = (double) transport.length() / (double) sr;
+    if (totalSec <= 0.0) return;
+
+    const float w = area.getWidth();
+    constexpr int kIdealMajors = 8;
+
+    static const double kSteps[] = {
+        1, 2, 5, 10, 15, 30, 60, 120, 300, 600
+    };
+    double step = kSteps[0];
+    for (double cand : kSteps)
+    {
+        step = cand;
+        if (totalSec / cand <= kIdealMajors) break;
+    }
+
+    const float pxPerSec = w / (float) totalSec;
+    const float tickAlpha = 0.35f;
+
+    g.setColour (Theme::col (Theme::kTextTertiary).withAlpha (tickAlpha));
+    g.setFont (juce::Font (juce::FontOptions (9.0f)));
+
+    // Minor ticks every `step/5` seconds when the panel is wide enough to
+    // show them without crowding.
+    const double minorStep = step / 5.0;
+    if (minorStep * pxPerSec >= 4.0)
+    {
+        for (double s = minorStep; s < totalSec; s += minorStep)
+        {
+            const float x = area.getX() + (float) s * pxPerSec;
+            g.fillRect (x, area.getBottom() - 4.f, 1.f, 3.f);
+        }
+    }
+
+    // Major ticks + caption.
+    g.setColour (Theme::col (Theme::kTextTertiary).withAlpha (0.7f));
+    for (double s = step; s < totalSec; s += step)
+    {
+        const float x = area.getX() + (float) s * pxPerSec;
+        g.fillRect (x, area.getBottom() - 7.f, 1.f, 6.f);
+
+        const int  mins = (int) (s / 60.0);
+        const int  secs = (int) s - mins * 60;
+        const auto label = juce::String::formatted ("%d:%02d", mins, secs);
+        const juce::Rectangle<float> capR (x - 18.f, area.getY() + 1.f, 36.f, 11.f);
+        g.drawText (label, capR.toNearestInt(), juce::Justification::centred, false);
+    }
 }
 
 } // namespace stemmerizer::ui

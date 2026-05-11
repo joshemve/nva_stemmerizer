@@ -6,6 +6,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -44,10 +45,22 @@ public:
 
     void setColour (juce::Colour c) { col = c; repaint(); }
 
+    /// Optional callbacks. When set, click-and-release performs a seek AND
+    /// invokes onClicked (used for "select this row"). A drag that exceeds
+    /// the drag-out threshold invokes onDragOutRequested instead — the
+    /// owner then kicks off an OS-level drag of the relevant file(s).
+    ///
+    /// When neither is set the strip falls back to plain click-to-seek.
+    std::function<void(juce::ModifierKeys)> onClicked;
+    std::function<void(juce::ModifierKeys)> onDragOutRequested;
+
     void paint (juce::Graphics&) override;
     void resized() override;
-    void mouseDown (const juce::MouseEvent&) override;
-    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseDown   (const juce::MouseEvent&) override;
+    void mouseDrag   (const juce::MouseEvent&) override;
+    void mouseUp     (const juce::MouseEvent&) override;
+    void mouseMove   (const juce::MouseEvent&) override;
+    void mouseExit   (const juce::MouseEvent&) override;
 
 private:
     void timerCallback() override;
@@ -73,6 +86,14 @@ private:
     struct Peak { float lo { 0.f }; float hi { 0.f }; };
     std::vector<Peak> peaks;
     int               peaksWidth { 0 };
+
+    // Drag-out arming. mouseDown captures modifiers + position; mouseDrag
+    // promotes to a drag-out once the user has moved past the threshold;
+    // mouseUp without that promotion is treated as a click (seek).
+    bool                    pressArmed { false };
+    juce::ModifierKeys      pressMods  {};
+    bool                    hovering   { false };
+    static constexpr int    kDragOutPx { 6 };
 };
 
 } // namespace stemmerizer::ui

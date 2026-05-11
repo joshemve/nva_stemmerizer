@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dsp/JobQueue.h"
+#include "dsp/RecentProjects.h"
 #include "dsp/StemSession.h"
 #include "dsp/Transport.h"
 
@@ -49,10 +50,11 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     // Stemmerizer ============================================================
-    dsp::JobQueue&     jobQueue()        { return queue;   }
-    dsp::StemSession&  session()         { return sess;    }
-    dsp::Transport&    transport()       { return tport;   }
-    juce::ValueTree&   state()           { return tree;    }
+    dsp::JobQueue&        jobQueue()       { return queue;   }
+    dsp::StemSession&     session()        { return sess;    }
+    dsp::Transport&       transport()      { return tport;   }
+    juce::ValueTree&      state()          { return tree;    }
+    dsp::RecentProjects&  recentProjects() { return recents; }
 
     /// Resolves the directory containing the .gguf weight files.
     juce::File resolveWeightsDir() const;
@@ -62,6 +64,7 @@ private:
     dsp::StemSession    sess;
     dsp::Transport      tport;
     dsp::JobQueue       queue;
+    dsp::RecentProjects recents;
 
     // ---- prepareToPlay-resident audio buffers ---------------------------
     // Persistent stereo planes used by processBlock to receive MixRenderer

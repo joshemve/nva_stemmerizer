@@ -175,6 +175,8 @@ target_sources(Stemmerizer PRIVATE
     src/dsp/DragExporter.h
     src/dsp/MusicAnalysis.cpp
     src/dsp/MusicAnalysis.h
+    src/dsp/RecentProjects.cpp
+    src/dsp/RecentProjects.h
 
     # ---- UI ----
     src/ui/Theme.h
@@ -197,6 +199,8 @@ target_sources(Stemmerizer PRIVATE
     src/ui/StemRow.cpp
     src/ui/StemMixerPanel.h
     src/ui/StemMixerPanel.cpp
+    src/ui/RecentBar.h
+    src/ui/RecentBar.cpp
 )
 
 target_include_directories(Stemmerizer PRIVATE

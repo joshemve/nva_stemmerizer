@@ -41,11 +41,13 @@ public:
 private:
     static bool isAcceptedAudio (const juce::String& path);
 
-    float pulse        { 0.f };       // 0..1 idle pulse phase
-    float hoverGlow    { 0.f };       // eased toward 1 when mouse over
-    float dragGlow     { 0.f };       // eased toward 1 when files dragged over
-    bool  hovered      { false };
-    bool  draggingOver { false };
+    float pulse         { 0.f };       // 0..2pi idle pulse phase
+    float dashPhase     { 0.f };       // accumulates -> flows the dashed border
+    float hoverGlow     { 0.f };       // eased toward 1 when mouse over
+    float dragGlow      { 0.f };       // eased toward 1 when files dragged over
+    bool  hovered       { false };
+    bool  draggingOver  { false };
+    bool  alwaysAnimate { true };      // always run the dash flow + breath
 };
 
 } // namespace stemmerizer::ui

@@ -363,12 +363,6 @@ bool OnnxBackend::loadModel (const std::string& modelFile,
 
     const std::wstring modelPathW = std::filesystem::path (modelFile).wstring();
 
-    if (! std::filesystem::exists (modelFile))
-    {
-        lastError = "Model file not found on disk: " + modelFile;
-        return false;
-    }
-
     // ---- Session-attempt helper -----------------------------------------
     // Builds fresh model + session_options for the requested backend +
     // optimization profile, then creates the Ort::Session via demucs.onnx's

@@ -8,6 +8,7 @@
 #include "ui/LoopRegionView.h"
 #include "ui/JobList.h"
 #include "ui/IconButton.h"
+#include "ui/RecentBar.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -33,6 +34,7 @@ private:
     void enqueueFile (const juce::File&);
     void browseOutputDir();
     void onSessionChanged();   // called when the in-memory session updates
+    void refreshRecentBar();   // pulls fresh entries from processor.recentProjects()
 
     StemmerizerProcessor& processor;
 
@@ -60,6 +62,9 @@ private:
     ui::TransportBar    transport;
     ui::LoopRegionView  loopRegion;
     ui::StemMixerPanel  mixer;
+
+    // ---- Recent splits strip (between header and body) ----
+    ui::RecentBar       recentBar;
 
     // ---------------------------------------------------------------
     // Tiny clickable label that routes mouseUp to a callback. Lives

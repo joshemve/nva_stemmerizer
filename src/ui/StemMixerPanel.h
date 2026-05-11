@@ -9,6 +9,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <atomic>
+#include <cstdint>
 #include <functional>
 #include <vector>
 #include <memory>
@@ -45,7 +47,16 @@ public:
     void mouseMove (const juce::MouseEvent&) override;
 
 private:
+    // Selection model.
+    void onRowClicked (int idx, juce::ModifierKeys mods);
+    void onRowDragRequested (int idx, juce::ModifierKeys mods);
+    void applySelectionVisuals();
+    void clearSelection();
+    int  selectionCount() const noexcept;
+    std::vector<int> selectionAsIndices() const;
+
     void requestDragForStem (int idx);
+    void requestDragSelection();
     void requestDragAll();
     void requestDragMix();
     void timerCallback() override;
@@ -56,6 +67,12 @@ private:
     dsp::Transport&   transport;
 
     std::vector<std::unique_ptr<StemRow>> rows;
+
+    // Multi-select state. `selected[i]` mirrors `rows[i]->isSelected()`;
+    // `anchorRow` is the last solo-clicked / ctrl-clicked row, used as the
+    // pivot for shift-range selection. Both reset on rebuild().
+    std::vector<bool> selected;
+    int               anchorRow { -1 };
 
     // Footer drag pills.
     juce::Rectangle<int>  dragStemsBounds;
@@ -82,10 +99,15 @@ private:
     juce::String lastDragError;
     juce::int64  lastDragErrorAtMs { 0 };
 
-    // Optional musical analysis populated on rebuild(); shown in the header
-    // right-side caption when present (e.g. "120 BPM · C minor").
+    // Optional musical analysis populated AFTER rebuild() by a background
+    // worker thread (audit N4). The header right-side caption shows
+    // "120 BPM · C minor" once these land; before then we display the
+    // stem-count fallback. Bumping `analysisVersion` on each rebuild
+    // invalidates any in-flight analysis from the previous session so a
+    // stale result can't paint over fresh content.
     std::optional<dsp::BpmResult>  bpmInfo;
     std::optional<dsp::KeyResult>  keyInfo;
+    std::atomic<std::uint64_t>     analysisVersion { 0 };
 };
 
 } // namespace stemmerizer::ui

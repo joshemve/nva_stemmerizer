@@ -155,7 +155,62 @@ void WaveformStrip::paint (juce::Graphics& g)
 
 void WaveformStrip::timerCallback() { repaint(); }
 
-void WaveformStrip::mouseDown (const juce::MouseEvent& e) { transport.seek (sampleAtX (e.x)); }
-void WaveformStrip::mouseDrag (const juce::MouseEvent& e) { transport.seek (sampleAtX (e.x)); }
+void WaveformStrip::mouseDown (const juce::MouseEvent& e)
+{
+    // Don't seek immediately — we don't know yet whether this is a click
+    // (seek) or the start of a drag-out (file drag). mouseUp / mouseDrag
+    // settle it. When no drag-out callback is wired we fall back to the
+    // old behaviour (seek on press).
+    pressArmed = true;
+    pressMods  = e.mods;
+    if (! onDragOutRequested) transport.seek (sampleAtX (e.x));
+}
+
+void WaveformStrip::mouseDrag (const juce::MouseEvent& e)
+{
+    if (! pressArmed) return;
+    if (onDragOutRequested && e.getDistanceFromDragStart() > kDragOutPx)
+    {
+        pressArmed = false;
+        onDragOutRequested (pressMods);
+        return;
+    }
+    // Legacy scrub when no drag-out handler is wired — preserved for any
+    // future caller that wants a plain seek waveform.
+    if (! onDragOutRequested) transport.seek (sampleAtX (e.x));
+}
+
+void WaveformStrip::mouseUp (const juce::MouseEvent& e)
+{
+    if (! pressArmed) return;
+    pressArmed = false;
+
+    // Treat a low-distance press+release as a click. Plain click → seek
+    // and announce the click (for selection). Modifier-click → just the
+    // selection signal, no seek (lets users multi-select without
+    // moving the playhead).
+    const bool isClick = e.getDistanceFromDragStart() <= kDragOutPx;
+    if (! isClick) return;
+
+    const bool hasModifier = pressMods.isShiftDown() || pressMods.isCtrlDown()
+                          || pressMods.isCommandDown();
+    if (! hasModifier) transport.seek (sampleAtX (e.x));
+    if (onClicked) onClicked (pressMods);
+}
+
+void WaveformStrip::mouseMove (const juce::MouseEvent&)
+{
+    if (onDragOutRequested && ! hovering)
+    {
+        hovering = true;
+        setMouseCursor (juce::MouseCursor::DraggingHandCursor);
+    }
+}
+
+void WaveformStrip::mouseExit (const juce::MouseEvent&)
+{
+    hovering = false;
+    setMouseCursor (juce::MouseCursor::NormalCursor);
+}
 
 } // namespace stemmerizer::ui

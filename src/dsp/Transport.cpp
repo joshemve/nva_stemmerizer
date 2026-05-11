@@ -5,34 +5,44 @@
 namespace stemmerizer::dsp
 {
 
-long long Transport::advance (long long n) noexcept
+bool Transport::commitBlock (long long expectedFrom,
+                             long long newPosInt,
+                             double    newPhaseFrac) noexcept
 {
-    long long p   = pos.load (std::memory_order_acquire);
-    const long long len = totalLen.load (std::memory_order_acquire);
-    if (len <= 0) return p;
-
-    p += n;
-
-    if (loopOn.load (std::memory_order_acquire))
+    // CAS pos from `expectedFrom` to `newPosInt`. If the user seeked
+    // mid-block, pos has already moved, and we MUST NOT overwrite that
+    // seek with our renderer-side advance (audit N5). On rejection we
+    // also wipe the fractional accumulator — the seek landed on an
+    // integer source sample, so any leftover sub-sample remainder from
+    // the prior block is stale.
+    long long expected = expectedFrom;
+    if (! pos.compare_exchange_strong (expected, newPosInt,
+                                       std::memory_order_acq_rel,
+                                       std::memory_order_acquire))
     {
-        const long long s = lpStart.load (std::memory_order_acquire);
-        const long long e = lpEnd.load   (std::memory_order_acquire);
-        if (e > s && p >= e)
-        {
-            const long long span = e - s;
-            // Modulo into the loop region (handles huge jumps without an
-            // unbounded loop).
-            p = s + ((p - s) % span);
-        }
+        phase.store (0.0, std::memory_order_release);
+        return false;
     }
-    else if (p >= len)
+
+    // Pos updated. Carry the new sub-sample fraction forward so the next
+    // block doesn't truncate it to zero (audit N2). The two stores are
+    // intentionally unordered relative to each other — only the audio
+    // thread writes either, and any UI reader of `phase` is purely
+    // cosmetic (no consumer today).
+    phase.store (newPhaseFrac, std::memory_order_release);
+
+    // Auto-stop at end-of-stream (no loop). Mirrors the old advance()
+    // behaviour; the renderer's per-sample silence-past-end path handles
+    // the audible part, this is just the playing/pos cleanup.
+    const long long len = totalLen.load (std::memory_order_acquire);
+    if (len > 0 && newPosInt >= len && ! loopOn.load (std::memory_order_acquire))
     {
-        p = len;
+        pos.store     (len,  std::memory_order_release);
+        phase.store   (0.0,  std::memory_order_release);
         playing.store (false, std::memory_order_release);
     }
 
-    pos.store (p, std::memory_order_release);
-    return p;
+    return true;
 }
 
 void Transport::prepare (long long lengthInSamples, int sampleRateHz)
@@ -40,7 +50,8 @@ void Transport::prepare (long long lengthInSamples, int sampleRateHz)
     totalLen.store (lengthInSamples, std::memory_order_release);
     sr.store       (sampleRateHz,    std::memory_order_release);
 
-    pos.store (0, std::memory_order_release);
+    pos.store     (0, std::memory_order_release);
+    phase.store   (0.0, std::memory_order_release);
     lpStart.store (0, std::memory_order_release);
     lpEnd.store   (lengthInSamples, std::memory_order_release);
     notifyChanged();
@@ -53,7 +64,8 @@ void Transport::stop()
 {
     playing.store (false, std::memory_order_release);
     const long long s = loopOn.load (std::memory_order_acquire) ? lpStart.load() : 0LL;
-    pos.store (s, std::memory_order_release);
+    pos.store   (s,   std::memory_order_release);
+    phase.store (0.0, std::memory_order_release);
     notifyChanged();
 }
 
@@ -61,7 +73,11 @@ void Transport::seek (long long sample)
 {
     const long long len = totalLen.load (std::memory_order_acquire);
     sample = std::max<long long> (0, std::min (sample, len));
-    pos.store (sample, std::memory_order_release);
+    pos.store   (sample, std::memory_order_release);
+    // Seek targets an integer source sample, so any carried-over
+    // sub-sample fraction from the prior playback position is no longer
+    // meaningful.
+    phase.store (0.0, std::memory_order_release);
     notifyChanged();
 }
 

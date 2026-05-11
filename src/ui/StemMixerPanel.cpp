@@ -3,6 +3,7 @@
 #include "../dsp/DragExporter.h"
 
 #include <filesystem>
+#include <thread>
 
 namespace stemmerizer::ui
 {
@@ -46,35 +47,82 @@ StemMixerPanel::~StemMixerPanel()
 void StemMixerPanel::rebuild()
 {
     rows.clear();
+    selected.clear();
+    anchorRow = -1;
+
     auto snap = session.currentSnapshot();
     const int n = snap ? (int) snap->stems.size() : 0;
 
     for (int i = 0; i < n; ++i)
     {
         auto row = std::make_unique<StemRow> (session, transport, i);
-        row->onDragRequested = [this](int idx) { requestDragForStem (idx); };
+        row->onRowClicked = [this] (int idx, juce::ModifierKeys mods)
+        {
+            onRowClicked (idx, mods);
+        };
+        row->onDragRequested = [this] (int idx, juce::ModifierKeys mods)
+        {
+            onRowDragRequested (idx, mods);
+        };
         addAndMakeVisible (*row);
         row->refreshFromSession();
         rows.push_back (std::move (row));
     }
+    selected.assign ((size_t) n, false);
 
-    // Run BPM / key detection on the original mix. Synchronous on the
-    // message thread is acceptable: rebuild() only fires when a split
-    // completes (rare), and a few-minute song at 44.1 kHz analyses well
-    // under a second with these parameters. Conservative thresholds inside
-    // the analyzers ensure we surface nothing rather than misleading info.
+    // Wipe stale labels NOW so the header doesn't briefly show the
+    // previous song's BPM/key while the new analysis runs.
     bpmInfo.reset();
     keyInfo.reset();
+
+    // Audit N4: BPM and (especially) key detection are O(seconds) on
+    // long files — analyzeKey is ~3877 × 8192-FFTs for a 6-minute track.
+    // Running that on the message thread freezes the whole DAW. Fan it
+    // out to a detached worker; results post back via MessageManager.
+    //
+    // Correctness notes:
+    //   * We pass `snap` (a shared_ptr) BY VALUE into the lambda — its
+    //     strong refcount keeps the audio buffer alive even if the
+    //     session swaps in a different file mid-analysis.
+    //   * A monotonically increasing `analysisVersion` lets us discard
+    //     stale results: if rebuild() runs again before our analysis
+    //     finishes, the version bumps and the now-stale lambda's posted
+    //     result is dropped by the version check.
+    //   * SafePointer guards against the panel itself being destroyed
+    //     before the analysis lands — a JUCE-idiomatic UAF defence.
     if (snap && ! snap->original.empty())
     {
-        bpmInfo = dsp::analyzeBpm (snap->original.data(),
-                                   snap->numFrames,
-                                   snap->numChannels,
-                                   snap->sampleRate);
-        keyInfo = dsp::analyzeKey (snap->original.data(),
-                                   snap->numFrames,
-                                   snap->numChannels,
-                                   snap->sampleRate);
+        const auto version = ++analysisVersion;
+        std::thread (
+            [snap, version,
+             safe = juce::Component::SafePointer<StemMixerPanel> (this)]
+            {
+                auto bpm = dsp::analyzeBpm (snap->original.data(),
+                                            snap->numFrames,
+                                            snap->numChannels,
+                                            snap->sampleRate);
+                auto key = dsp::analyzeKey (snap->original.data(),
+                                            snap->numFrames,
+                                            snap->numChannels,
+                                            snap->sampleRate);
+                juce::MessageManager::callAsync (
+                    [safe, bpm = std::move (bpm), key = std::move (key), version]
+                    {
+                        auto* self = safe.getComponent();
+                        if (self == nullptr) return;
+                        // Discard stale results from a previous session.
+                        if (self->analysisVersion.load() != version) return;
+                        self->bpmInfo = bpm;
+                        self->keyInfo = key;
+                        self->repaint();
+                    });
+            }).detach();
+    }
+    else
+    {
+        // No audio — make sure no stale analysis from a previous file
+        // races back and paints over the empty state.
+        ++analysisVersion;
     }
 
     resized();
@@ -211,7 +259,15 @@ void StemMixerPanel::paint (juce::Graphics& g)
         g.drawText (label, r, juce::Justification::centred);
     };
 
-    drawPill (dragStemsBounds, "drag stems out", dragStemsArmed);
+    // The left-side pill is selection-aware: when one or more rows are
+    // highlighted, it switches to drag just those rows so the user can
+    // pull a subset into their DAW from a single discoverable button.
+    const int selCount = selectionCount();
+    const juce::String stemsPillLabel = selCount > 0
+        ? (juce::String ("drag ") + juce::String (selCount)
+            + (selCount == 1 ? " stem out" : " stems out"))
+        : juce::String ("drag all stems out");
+    drawPill (dragStemsBounds, stemsPillLabel,   dragStemsArmed);
     drawPill (dragMixBounds,   "drag mix out",   dragMixArmed);
 
     // ---- Transient error caption ----
@@ -336,6 +392,12 @@ void StemMixerPanel::mouseDown (const juce::MouseEvent& e)
     // anything else here, which is the intended behaviour.
     if (dragStemsBounds.contains (pos)) { dragStemsArmed = true; repaint(); return; }
     if (dragMixBounds.contains (pos))   { dragMixArmed   = true; repaint(); return; }
+
+    // Click landed on empty mixer chrome (between rows, gutter around the
+    // footer, etc.) — that's the standard "deselect everything" surface.
+    // We don't include row internals here because each StemRow handles
+    // its own click events before the event ever bubbles to the panel.
+    if (! rows.empty()) clearSelection();
 }
 
 void StemMixerPanel::mouseDrag (const juce::MouseEvent& e)
@@ -347,7 +409,9 @@ void StemMixerPanel::mouseDrag (const juce::MouseEvent& e)
         {
             dragStemsArmed = false;
             repaint();
-            requestDragAll();
+            // Selection-aware: drag the subset when there is one, else all.
+            if (selectionCount() > 0) requestDragSelection();
+            else                      requestDragAll();
         }
         else if (dragMixArmed)
         {
@@ -374,7 +438,9 @@ void StemMixerPanel::mouseMove (const juce::MouseEvent& e)
 {
     const auto pos = e.getPosition();
     if (dragStemsBounds.contains (pos))
-        setTooltip ("Drag the raw separated stems out as a folder");
+        setTooltip (selectionCount() > 0
+                        ? "Drag only the highlighted stems out"
+                        : "Drag every separated stem out as files");
     else if (dragMixBounds.contains (pos))
         setTooltip ("Drag your current mixdown out (mute/solo/levels baked in)");
     else if (! abStemsBounds.isEmpty() && abStemsBounds.contains (pos))
@@ -405,6 +471,21 @@ void StemMixerPanel::requestDragForStem (int idx)
         }
     }
     catch (...) { /* user can retry; don't crash the DAW */ }
+}
+
+void StemMixerPanel::requestDragSelection()
+{
+    const auto indices = selectionAsIndices();
+    if (indices.empty()) return;
+    try
+    {
+        auto snap = session.currentSnapshot();
+        if (! snap) return;
+        const auto base = std::filesystem::path (session.sourceFilePath()).stem().string();
+        if (! dsp::DragExporter::dragStems (this, *snap, indices, base))
+            flashError ("could not render selected stems");
+    }
+    catch (...) { /* don't crash the host on a drag failure */ }
 }
 
 void StemMixerPanel::requestDragAll()
@@ -463,6 +544,106 @@ void StemMixerPanel::timerCallback()
         stopTimer();
     }
     repaint();
+}
+
+// ----------------------------------------------------------------------------
+//   Selection model
+// ----------------------------------------------------------------------------
+//
+// Multi-select rules — chosen to match standard list controls everywhere
+// (Explorer, Finder, every DAW's track header):
+//
+//   plain click   → clear selection, then select this row. Anchor = idx.
+//   ctrl/cmd click → toggle this row in the selection. Anchor = idx.
+//   shift click   → range-select from anchor to idx (replacing selection).
+//                   Anchor itself is not updated (so subsequent shift-clicks
+//                   keep extending from the same pivot).
+//
+// Row state lives in `selected[]`. We mirror that to each StemRow's own
+// `selected` flag so paint() can light up the visual highlight without
+// any extra plumbing.
+
+void StemMixerPanel::onRowClicked (int idx, juce::ModifierKeys mods)
+{
+    if (idx < 0 || idx >= (int) rows.size()) return;
+    if ((int) selected.size() != (int) rows.size()) selected.assign (rows.size(), false);
+
+    const bool ctrl  = mods.isCtrlDown() || mods.isCommandDown();
+    const bool shift = mods.isShiftDown();
+
+    if (ctrl)
+    {
+        selected[(size_t) idx] = ! selected[(size_t) idx];
+        anchorRow = idx;
+    }
+    else if (shift && anchorRow >= 0 && anchorRow < (int) rows.size())
+    {
+        const int a = std::min (anchorRow, idx);
+        const int b = std::max (anchorRow, idx);
+        std::fill (selected.begin(), selected.end(), false);
+        for (int i = a; i <= b; ++i) selected[(size_t) i] = true;
+        // intentionally do not move anchorRow — lets the user keep
+        // extending from the same pivot with further shift-clicks.
+    }
+    else
+    {
+        std::fill (selected.begin(), selected.end(), false);
+        selected[(size_t) idx] = true;
+        anchorRow = idx;
+    }
+
+    applySelectionVisuals();
+    repaint();   // refresh the footer pill label / tooltip
+}
+
+void StemMixerPanel::onRowDragRequested (int idx, juce::ModifierKeys /*mods*/)
+{
+    // If the user grabs a row that's part of the current selection, drag
+    // every selected row out together. Otherwise drag just that one row
+    // (without touching the selection — feels less destructive than
+    // forcing a reselect mid-grab).
+    if (idx >= 0 && idx < (int) selected.size() && selected[(size_t) idx]
+        && selectionCount() > 1)
+    {
+        requestDragSelection();
+    }
+    else
+    {
+        requestDragForStem (idx);
+    }
+}
+
+void StemMixerPanel::applySelectionVisuals()
+{
+    const int n = (int) rows.size();
+    if ((int) selected.size() != n) selected.assign ((size_t) n, false);
+    for (int i = 0; i < n; ++i)
+        rows[(size_t) i]->setSelected (selected[(size_t) i]);
+}
+
+void StemMixerPanel::clearSelection()
+{
+    if (selected.empty()) return;
+    std::fill (selected.begin(), selected.end(), false);
+    anchorRow = -1;
+    applySelectionVisuals();
+    repaint();
+}
+
+int StemMixerPanel::selectionCount() const noexcept
+{
+    int c = 0;
+    for (bool b : selected) if (b) ++c;
+    return c;
+}
+
+std::vector<int> StemMixerPanel::selectionAsIndices() const
+{
+    std::vector<int> out;
+    out.reserve (selected.size());
+    for (size_t i = 0; i < selected.size(); ++i)
+        if (selected[i]) out.push_back ((int) i);
+    return out;
 }
 
 } // namespace stemmerizer::ui

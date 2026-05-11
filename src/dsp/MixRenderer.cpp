@@ -67,8 +67,17 @@ namespace
             if (slot.muted.load (std::memory_order_relaxed)) continue;
             if (anySolo && ! slot.soloed.load (std::memory_order_relaxed)) continue;
 
-            const float gain = slot.gain.load (std::memory_order_relaxed);
-            const float pan  = slot.pan.load  (std::memory_order_relaxed);
+            // Audit safety: hard-cap per-stem gain at +6 dB (2.0×) on the
+            // audio thread. The fader UI already clamps inputs, but state
+            // restored from a project file, future automation paths, or
+            // bugs upstream could still feed in a wild value. A 90+ dB
+            // gain through speakers would be physically dangerous, so we
+            // never trust the bare atomic — we always clamp before
+            // multiplying into the mix bus.
+            constexpr float kAudioThreadMaxGain = 2.0f;   // mirrors StemRow kMaxGain
+            const float gainRaw = slot.gain.load (std::memory_order_relaxed);
+            const float gain    = std::max (0.f, std::min (kAudioThreadMaxGain, gainRaw));
+            const float pan     = slot.pan.load (std::memory_order_relaxed);
             float sL = 0.f, sR = 0.f;
             readFrameLerp (snap.stems[(size_t) s].interleaved.data(),
                            snap.stems[(size_t) s].numChannels,
@@ -153,7 +162,14 @@ void MixRenderer::renderBlock (const StemSession::Snapshot& snap,
     lastSnapNumStems   = curNumStems;
 
     // Source-domain (session sample rate) read cursor, fractional.
-    double srcPos        = (double) transport.position();
+    // Audit N2: seed from BOTH the integer pos and the sub-sample
+    // remainder Transport carries between blocks. Without the phase
+    // term, every block truncates the fraction and a non-integer SR
+    // ratio (44.1 k session in a 48 k host etc.) drifts hundreds of ms
+    // over a full track. Capture pos NOW so commitBlock() below can
+    // detect a mid-block seek (audit N5).
+    const long long blockStartPos = transport.position();
+    double srcPos        = (double) blockStartPos + transport.phaseFrac();
     const long long len  = snap.numFrames;
     const bool loopOn    = transport.isLoopOn();
     const double lpS     = (double) transport.loopStart();
@@ -206,9 +222,13 @@ void MixRenderer::renderBlock (const StemSession::Snapshot& snap,
             srcPos = lpS + std::fmod (srcPos - lpS, lpE - lpS);
     }
 
-    // Commit the advance to the transport in source-domain integer samples.
-    const long long delta = (long long) std::floor (srcPos) - transport.position();
-    transport.advance (delta);
+    // Commit the block: pos += integer-part-consumed, phase = leftover
+    // fractional. CAS against blockStartPos so a concurrent seek wins
+    // (audit N5). Auto-stop-at-end-of-stream is handled inside
+    // commitBlock when loop is off.
+    const long long newPosInt = (long long) std::floor (srcPos);
+    const double    newFrac   = srcPos - (double) newPosInt;
+    transport.commitBlock (blockStartPos, newPosInt, newFrac);
 }
 
 } // namespace stemmerizer::dsp

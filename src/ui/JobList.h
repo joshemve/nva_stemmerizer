@@ -21,6 +21,20 @@ public:
     void setQueue (dsp::JobQueue* q) { queue = q; refresh(); }
     void refresh();
 
+    /// Number of jobs currently Queued or Running (i.e. visible to the
+    /// user as "something is happening"). Used by the editor to decide
+    /// whether to show the full queue panel, a slim 1-row strip, or
+    /// nothing at all.
+    int activeJobCount() const noexcept;
+
+    /// Total job count regardless of state (Queued / Running / Done /
+    /// Failed / Cancelled). Hides the panel completely when 0.
+    int totalJobCount() const noexcept { return (int) snapshot.size(); }
+
+    /// "Compact" mode: render a single slim progress row (no header /
+    /// no scroll). Used when totalJobCount() == 1.
+    void setCompactMode (bool compact);
+
     void paint (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
@@ -48,8 +62,9 @@ private:
 
     dsp::JobQueue*        queue { nullptr };
     std::vector<RowState> snapshot;
-    int hoverRow { -1 };
-    int scrollY  { 0 };
+    int  hoverRow { -1 };
+    int  scrollY  { 0 };
+    bool compactMode { false };
 };
 
 } // namespace stemmerizer::ui

@@ -19,7 +19,21 @@ JobQueue::JobQueue()
 
 JobQueue::~JobQueue()
 {
-    quit = true;
+    // Coordinated shutdown (audit N8). The worker can be deep inside
+    // splitter.split() at this point — that call only checks the cancel
+    // flag between segments via the bridge callback in OnnxBackend, so
+    // setting `quit` alone would block the destructor until the current
+    // segment finishes (multi-second on CPU). We:
+    //   1. Raise `quit` so the worker exits its outer wait when idle.
+    //   2. Raise `shutdown` so the per-job cancel watcher (which polls
+    //      every 60 ms) trips the local cancelFlag — the inference
+    //      bridge sees it on its next callback and throws out.
+    //   3. Notify the cv so an idle worker wakes up immediately.
+    // Net latency to close the DAW with a long split in flight: up to
+    // ~60 ms (watcher poll) + one segment of inference time, instead
+    // of waiting for the entire file to finish.
+    quit.store     (true);
+    shutdown.store (true);
     cv.notify_all();
     if (worker.joinable()) worker.join();
 }
@@ -39,15 +53,22 @@ bool JobQueue::ensureModel (const std::string& weightsDir, ModelVariant variant,
 
 int JobQueue::enqueue (Job job)
 {
+    // Audit N11: capture the assigned id BEFORE moving `job` into the
+    // queue. Previously we returned `nextId.load() - 1` which only
+    // happens to be correct under the single-writer guarantee — fragile
+    // and confusing. The reservation also stays inside the lock so the
+    // returned id is unambiguously tied to the just-enqueued entry.
+    int assignedId;
     {
         std::lock_guard<std::mutex> lock (mutex);
-        job.id    = nextId.fetch_add (1);
-        job.state = Job::State::Queued;
+        assignedId = nextId.fetch_add (1);
+        job.id     = assignedId;
+        job.state  = Job::State::Queued;
         queue.push_back (std::move (job));
     }
     cv.notify_one();
     notifyChange();
-    return nextId.load() - 1;
+    return assignedId;
 }
 
 void JobQueue::cancel (int id)
@@ -194,12 +215,19 @@ void JobQueue::workerLoop()
         std::atomic<bool> cancelFlag { false };
         const int runningId = current.id;
 
-        // Watcher: flips cancelFlag if the user requests cancel.
+        // Watcher: flips cancelFlag if the user requests cancel — OR if
+        // we're being torn down (audit N8). The shutdown branch lets
+        // ~JobQueue() unblock a long in-flight inference within the next
+        // poll interval instead of waiting for the file to finish.
         std::thread cancelWatcher ([this, &cancelFlag, runningId]
         {
             while (! cancelFlag.load() && ! quit.load())
             {
-                if (cancelId.load() == runningId) { cancelFlag = true; break; }
+                if (cancelId.load() == runningId || shutdown.load())
+                {
+                    cancelFlag = true;
+                    break;
+                }
                 std::this_thread::sleep_for (std::chrono::milliseconds (60));
             }
         });
@@ -244,6 +272,15 @@ void JobQueue::workerLoop()
         cancelFlag = true;
         if (cancelWatcher.joinable()) cancelWatcher.join();
         cancelId.store (0);
+
+        // Audit N8: if shutdown was requested while inference ran, skip
+        // the publish + disk-write phases entirely. The session and
+        // processor are still alive at this point (queue is destroyed
+        // before sess/tport per declaration order), but spending another
+        // 100+ ms writing WAVs during DAW teardown is pure latency for
+        // no observable effect — the next worker iteration will exit
+        // anyway when it rechecks `quit`.
+        if (shutdown.load()) break;
 
         // Hand the finished split off to the in-plugin session BEFORE we
         // write to disk — that way the user can play stems even while the

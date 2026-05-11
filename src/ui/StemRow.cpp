@@ -8,8 +8,22 @@ namespace stemmerizer::ui
 namespace
 {
     constexpr int kRowH       = 56;
-    constexpr int kFaderW     = 110;
+    // Was 110 — far too narrow once the stems panel became the hero. A
+    // wider fader is both visually obvious and easier to grab/drag
+    // precisely. 200 px is comfortable on the new ~75%-wide right column.
+    constexpr int kFaderW     = 200;
     constexpr int kSquareBtn  = 32;
+
+    // Hard ceilings — the fader's max gain is +6 dB at frac=1.0.
+    // ABSOLUTE_MAX_GAIN is the very last line of defence: even if some
+    // input path slips a corrupt value past our clamps (drag past the
+    // right edge, automation overshoot, scroll wheel, etc.) we never
+    // let the audio thread see a gain higher than 2.0× (+6 dB). Without
+    // this, a 5x sloppy click at the fader's right edge could feed 100+
+    // dB of gain into the mixer — physically dangerous and a real
+    // safety risk.
+    constexpr float kMaxGain      = 2.0f;       // +6 dB
+    constexpr float kMaxDbDisplay = 6.0f;
 
     /// Logarithmic fader position math.
     ///   fader 0%   -> -inf dB (gain 0)
@@ -24,14 +38,22 @@ namespace
     }
     inline float fractionToGain (float frac)
     {
+        // CRITICAL: clamp the input fraction before doing anything else.
+        // A drag that extends past the right edge of the fader produced
+        // frac > 1 and would then yield gain = 10^((frac*66-60)/20) —
+        // at frac=2.5 that's ~178,000× linear. Hearing-damage territory.
+        frac = juce::jlimit (0.f, 1.f, frac);
         if (frac <= 0.001f) return 0.f;
         const float db = frac * 66.f - 60.f;
-        return std::pow (10.f, db / 20.f);
+        const float gain = std::pow (10.f, db / 20.f);
+        // Final safety cap. If anyone ever lifts the frac clamp above
+        // we still hit kMaxGain (+6 dB) and the user's monitors survive.
+        return juce::jmin (gain, kMaxGain);
     }
     inline juce::String dbLabel (float gain)
     {
         if (gain <= 0.0001f) return "-inf";
-        const float db = 20.f * std::log10 (gain);
+        const float db = juce::jmin (kMaxDbDisplay, 20.f * std::log10 (gain));
         return juce::String (db, 1) + " dB";
     }
 }
@@ -41,6 +63,19 @@ StemRow::StemRow (dsp::StemSession& s, dsp::Transport& t, int stemIdx)
 {
     addAndMakeVisible (waveform);
     waveform.setColour (Theme::stemColor (idx, session.mixState().stemCount()));
+
+    // Drag-out / selection: forward the waveform's gestures up to the
+    // parent panel. Plain click → "select this row" (the panel decides
+    // what that means based on modifiers). A drag past the threshold →
+    // kick off an OS drag-and-drop of the current selection.
+    waveform.onClicked = [this] (juce::ModifierKeys mods)
+    {
+        if (onRowClicked) onRowClicked (idx, mods);
+    };
+    waveform.onDragOutRequested = [this] (juce::ModifierKeys mods)
+    {
+        if (onDragRequested) onDragRequested (idx, mods);
+    };
 }
 
 void StemRow::setStemIndex (int i)
@@ -48,6 +83,13 @@ void StemRow::setStemIndex (int i)
     idx = i;
     waveform.setColour (Theme::stemColor (idx, session.mixState().stemCount()));
     refreshFromSession();
+}
+
+void StemRow::setSelected (bool s) noexcept
+{
+    if (selected == s) return;
+    selected = s;
+    repaint();
 }
 
 void StemRow::refreshFromSession()
@@ -83,9 +125,10 @@ void StemRow::layOutControls()
     soloBounds = r.removeFromLeft (kSquareBtn).withSizeKeepingCentre (kSquareBtn, kSquareBtn);
     r.removeFromLeft (Theme::kPadSm);
 
-    dragBounds = r.removeFromRight (kSquareBtn).withSizeKeepingCentre (kSquareBtn, kSquareBtn);
-    r.removeFromRight (Theme::kPadSm);
-
+    // The old 6-dot drag handle on the right edge is gone — the waveform
+    // is itself the drag affordance now (see waveform.onDragOutRequested).
+    // That reclaimed strip becomes a small breathing margin between the
+    // dB label and the row edge, plus extra width for the waveform.
     dbBounds   = r.removeFromRight (60);
     r.removeFromRight (Theme::kPadSm);
 
@@ -100,11 +143,26 @@ void StemRow::paint (juce::Graphics& g)
     auto& slot = session.mixState().slot (idx);
     const auto color = Theme::stemColor (idx, session.mixState().stemCount());
     const bool muted  = slot.muted.load();
-    const bool soloed = slot.soloed.load();
 
-    // Background row
-    g.setColour (Theme::col (Theme::kBackground));
+    // Background row. Selected rows get a slightly elevated surface tint
+    // and a colored left bar so multi-selection is clearly visible.
+    const auto bg = selected ? Theme::col (Theme::kSurfaceHi)
+                             : Theme::col (Theme::kBackground);
+    g.setColour (bg);
     g.fillRoundedRectangle (getLocalBounds().toFloat().reduced (1.f), Theme::kRadiusMedium);
+
+    if (selected)
+    {
+        // Left accent bar in the stem's own colour, so the indicator also
+        // reinforces which row you're looking at.
+        const auto bar = getLocalBounds().toFloat().reduced (1.f).withWidth (3.f);
+        g.setColour (color);
+        g.fillRect (bar);
+
+        g.setColour (color.withAlpha (0.6f));
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.f),
+                                Theme::kRadiusMedium, 1.f);
+    }
 
     // Color dot
     g.setColour (color.withAlpha (muted ? 0.4f : 1.f));
@@ -126,8 +184,6 @@ void StemRow::paint (juce::Graphics& g)
     g.setColour (Theme::col (Theme::kTextSecondary));
     g.setFont (Theme::mono());
     g.drawText (dbLabel (slot.gain.load()), dbBounds, juce::Justification::centredRight);
-
-    drawDragHandle (g);
 }
 
 void StemRow::drawMuteSolo (juce::Graphics& g)
@@ -164,7 +220,11 @@ void StemRow::drawFader (juce::Graphics& g)
 
     const auto track = faderBounds.toFloat();
     const float midY = track.getCentreY();
-    const float trackH = 4.f;
+    // Thicker track + larger thumb for a more obvious "this is grabbable"
+    // affordance on the wider fader. Easier to land on with a mouse and
+    // it makes accidentally cranking up the gain to +6 dB require a real
+    // intentional drag — small visual changes near 0 dB are now visible.
+    const float trackH = 6.f;
     juce::Rectangle<float> trackR (track.getX(), midY - trackH * 0.5f,
                                    track.getWidth(), trackH);
 
@@ -199,30 +259,16 @@ void StemRow::drawFader (juce::Graphics& g)
     g.fillRoundedRectangle ({ track.getX(), midY - trackH * 0.5f, fillW, trackH },
                             trackH * 0.5f);
 
-    // Thumb
+    // Thumb — bigger and softer-edged than before for a more grabbable
+    // feel on a 200 px-wide fader. The outer white ring reads as a halo
+    // against the stem-colored fill; together they're hard to miss.
     const float thumbX = track.getX() + fillW;
-    const float thumbR = 9.f;
+    const float thumbR = 11.f;
     g.setColour (juce::Colours::white);
     g.fillEllipse (thumbX - thumbR, midY - thumbR, thumbR * 2, thumbR * 2);
     g.setColour (Theme::stemColor (idx, session.mixState().stemCount()));
-    g.fillEllipse (thumbX - thumbR + 2, midY - thumbR + 2,
-                   (thumbR - 2) * 2, (thumbR - 2) * 2);
-}
-
-void StemRow::drawDragHandle (juce::Graphics& g)
-{
-    g.setColour (Theme::col (Theme::kSurface));
-    g.fillRoundedRectangle (dragBounds.toFloat(), 6.f);
-    g.setColour (Theme::col (Theme::kBorder));
-    g.drawRoundedRectangle (dragBounds.toFloat(), 6.f, 1.f);
-
-    g.setColour (Theme::col (Theme::kTextSecondary));
-    const float cx = dragBounds.toFloat().getCentreX();
-    const float cy = dragBounds.toFloat().getCentreY();
-    // Six-dot grip glyph (vertical 2x3)
-    for (int j = 0; j < 3; ++j)
-        for (int i = 0; i < 2; ++i)
-            g.fillEllipse (cx - 3 + i * 4 - 1, cy - 5 + j * 4 - 1, 2, 2);
+    g.fillEllipse (thumbX - thumbR + 2.5f, midY - thumbR + 2.5f,
+                   (thumbR - 2.5f) * 2, (thumbR - 2.5f) * 2);
 }
 
 void StemRow::mouseDown (const juce::MouseEvent& e)
@@ -243,15 +289,24 @@ void StemRow::mouseDown (const juce::MouseEvent& e)
     if (faderBounds.contains (pos))
     {
         draggingFader = true;
-        const float frac = (float) (pos.x - faderBounds.getX()) / (float) faderBounds.getWidth();
+        // Pixel-clamp BEFORE division so the fraction is bounded even if
+        // the mouse is sitting on the fader's exact right edge (where
+        // pos.x == faderBounds.getRight() would give frac > 1).
+        const int xClamped = juce::jlimit (faderBounds.getX(),
+                                           faderBounds.getRight(),
+                                           pos.x);
+        const float frac = (float) (xClamped - faderBounds.getX())
+                         / (float) faderBounds.getWidth();
         slot.gain.store (fractionToGain (frac));
         repaint(); return;
     }
-    if (dragBounds.contains (pos))
-    {
-        dragArmed = true;
-        return;
-    }
+
+    // Everything else (dot, name, gap before/after the M/S buttons, the
+    // strip near the dB label) becomes a row "grip" — clicks select,
+    // drags export. Mirrors the waveform's gesture model so the row
+    // feels uniformly grabbable.
+    pressArmed = true;
+    pressMods  = e.mods;
 }
 
 void StemRow::mouseDrag (const juce::MouseEvent& e)
@@ -259,16 +314,32 @@ void StemRow::mouseDrag (const juce::MouseEvent& e)
     if (draggingFader)
     {
         auto& slot = session.mixState().slot (idx);
-        const float frac = (float) (e.x - faderBounds.getX()) / (float) faderBounds.getWidth();
+        // Same clamp as mouseDown — once the user starts dragging, the
+        // mouse can travel ANYWHERE on screen, but the gain must stay
+        // bounded between -inf and +6 dB.
+        const int xClamped = juce::jlimit (faderBounds.getX(),
+                                           faderBounds.getRight(),
+                                           e.x);
+        const float frac = (float) (xClamped - faderBounds.getX())
+                         / (float) faderBounds.getWidth();
         slot.gain.store (fractionToGain (frac));
         repaint();
         return;
     }
-    if (dragArmed && e.getDistanceFromDragStart() > 6)
+    if (pressArmed && e.getDistanceFromDragStart() > kDragOutPx)
     {
-        dragArmed = false;
-        if (onDragRequested) onDragRequested (idx);
-        return;
+        pressArmed = false;
+        if (onDragRequested) onDragRequested (idx, pressMods);
+    }
+}
+
+void StemRow::mouseUp (const juce::MouseEvent&)
+{
+    if (draggingFader) { draggingFader = false; return; }
+    if (pressArmed)
+    {
+        pressArmed = false;
+        if (onRowClicked) onRowClicked (idx, pressMods);
     }
 }
 
@@ -307,14 +378,15 @@ void StemRow::mouseWheelMove (const juce::MouseEvent& e,
 void StemRow::mouseMove (const juce::MouseEvent& e)
 {
     const auto pos = e.getPosition();
-    if (muteBounds.contains (pos) || soloBounds.contains (pos) || dragBounds.contains (pos))
+    if (muteBounds.contains (pos) || soloBounds.contains (pos))
         setMouseCursor (juce::MouseCursor::PointingHandCursor);
     else if (faderBounds.contains (pos))
         setMouseCursor (juce::MouseCursor::LeftRightResizeCursor);
-    else if (waveBounds.contains (pos))
-        setMouseCursor (juce::MouseCursor::PointingHandCursor);
     else
-        setMouseCursor (juce::MouseCursor::NormalCursor);
+        // Name / dot / row body / waveform pass-through — drag-to-DAW is
+        // armed across the whole row. (The waveform child sets its own
+        // cursor too, so this only fires when the move bubbles to us.)
+        setMouseCursor (juce::MouseCursor::DraggingHandCursor);
 }
 
 } // namespace stemmerizer::ui

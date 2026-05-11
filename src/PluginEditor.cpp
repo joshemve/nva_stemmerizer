@@ -27,14 +27,29 @@ namespace
         }
     }
 
-    constexpr int kWindowWidth  = 1180;
-    constexpr int kWindowHeight = 760;
+    // Default window dimensions. Was 1180×760 — felt sparse in the
+    // empty state. 1080×640 lands in a more compact, intentional
+    // composition while still leaving room for the stems mixer hero
+    // once a session loads.
+    constexpr int kWindowWidth  = 1080;
+    constexpr int kWindowHeight = 640;
 
     // Compact settings strip height (label row + control row).
     constexpr int kSettingsStripH = 64;
     // When the window is narrow, stack settings into two rows.
     constexpr int kSettingsStripH2Row = 64 + 64 + ui::Theme::kPadSm;
-    constexpr int kStackBelowPx = 1280;  // window width threshold for stacking
+    // Lowered from 1280 -> 900 so the default 1180-wide window keeps the
+    // settings on a single horizontal row (model | format | output). Two
+    // stacked rows made the empty state feel top-heavy with very little
+    // useful information to show.
+    constexpr int kStackBelowPx = 900;
+
+    // Empty-state drop-zone "card" dimensions. We constrain the bordered
+    // drop area to these values and centre it inside the body — without
+    // the cap the box stretches across 1100×600 px of dead surface,
+    // which reads as overwhelming rather than welcoming.
+    constexpr int kEmptyDropMaxW = 760;
+    constexpr int kEmptyDropMaxH = 420;
 }
 
 StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
@@ -51,6 +66,14 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
 
     // Allow keyboard transport shortcuts to land here.
     setWantsKeyboardFocus (true);
+
+    // Mark the editor opaque — paint() fills every pixel with the
+    // background gradient below. Without this, JUCE assumes we may be
+    // transparent and clears each invalidated region to the host
+    // window's background between repaints. During a fast drag of the
+    // bottom-right resize corner that shows up as a visible flash on
+    // the newly-exposed strip on every resize tick.
+    setOpaque (true);
 
     // ---- header ----
     titleLabel.setFont (ui::Theme::heading());
@@ -170,11 +193,60 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
     // When jobs come and go, also re-run the editor layout so the queue
     // panel grows / shrinks / disappears based on activity (see resized()
     // for the rules — empty -> hidden, 1 job -> slim strip, 2+ -> full).
-    processor.jobQueue().setChangeCallback ([this]
+    //
+    // Two safety hooks (audit N1, N3):
+    //   * SafePointer guard — setChangeCallback(nullptr) in ~Editor only
+    //     stops FUTURE notifies; it can't recall callAsync lambdas that
+    //     are already on the message queue with `this` baked in. A
+    //     captured Component::SafePointer becomes null once we destruct,
+    //     so a late-fire is a no-op instead of a use-after-free.
+    //   * Only relayout when the total job count actually changes —
+    //     this callback fires on every progress tick during inference,
+    //     and a full editor-wide resized() per tick is a perf hazard.
+    processor.jobQueue().setChangeCallback (
+        [safe = juce::Component::SafePointer<StemmerizerEditor> (this)]
+        {
+            auto* self = safe.getComponent();
+            if (self == nullptr) return;
+            const int before = self->jobList.totalJobCount();
+            self->jobList.refresh();
+            if (self->jobList.totalJobCount() != before)
+                self->resized();
+            // Worker writes stems AFTER the finishedCallback fires (see
+            // JobQueue.cpp). Re-running the bar layout when the job state
+            // transitions to Done picks up the now-on-disk files so the
+            // card no longer shows "missing files" for the short window
+            // between session-handoff and the encode completing.
+            self->refreshRecentBar();
+        });
+
+    // ---- recent splits strip ----
+    addChildComponent (recentBar);   // hidden until refreshRecentBar() finds entries
+    recentBar.onRemoveRequested = [this] (const juce::String& id)
     {
-        jobList.refresh();
-        resized();
-    });
+        processor.recentProjects().remove (id);
+        // The remove() call fires onChanged on this (message) thread, which
+        // hops via callAsync back into refreshRecentBar.
+    };
+    recentBar.onClearAll = [this]
+    {
+        processor.recentProjects().clear();
+    };
+    // RecentProjects::add/remove/clear all fire onChanged on whatever thread
+    // touched the list — that can be the JobQueue worker via the finished-
+    // callback path. SafePointer the editor so a queued callAsync after
+    // teardown is a no-op, and never reach into the recentBar member from a
+    // raw `this` capture.
+    processor.recentProjects().onChanged =
+        [safe = juce::Component::SafePointer<StemmerizerEditor> (this)]
+        {
+            juce::MessageManager::callAsync ([safe]
+            {
+                if (auto* self = safe.getComponent())
+                    self->refreshRecentBar();
+            });
+        };
+    refreshRecentBar();
 
     // ---- right side: player ----
     addAndMakeVisible (transport);
@@ -195,7 +267,16 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
         return dsp::AudioFileIO::ExportFormat::Wav24;
     };
 
-    sessionListener = processor.session().addListener ([this] { onSessionChanged(); });
+    // Same SafePointer pattern (audit N1) — session.notifyChanged copies
+    // listeners into an async lambda BEFORE the editor's destructor calls
+    // removeListener, so already-queued asyncs would otherwise re-enter
+    // a freed editor.
+    sessionListener = processor.session().addListener (
+        [safe = juce::Component::SafePointer<StemmerizerEditor> (this)]
+        {
+            if (auto* self = safe.getComponent())
+                self->onSessionChanged();
+        });
 
     startTimerHz (30);
 }
@@ -209,6 +290,7 @@ StemmerizerEditor::~StemmerizerEditor()
     if (sessionListener   != 0) processor.session().removeListener (sessionListener);
     if (transportListener != 0) processor.transport().removeListener (transportListener);
     processor.jobQueue().setChangeCallback (nullptr);
+    processor.recentProjects().onChanged = nullptr;
     setLookAndFeel (nullptr);
 }
 
@@ -225,6 +307,22 @@ void StemmerizerEditor::onSessionChanged()
     mixer.rebuild();
     resized();
     repaint();
+}
+
+void StemmerizerEditor::refreshRecentBar()
+{
+    auto entries = processor.recentProjects().entries();
+    const bool show = ! entries.empty();
+    recentBar.setEntries (std::move (entries));
+    if (recentBar.isVisible() != show)
+    {
+        recentBar.setVisible (show);
+        resized();   // bar appearing/disappearing changes the body layout
+    }
+    else
+    {
+        recentBar.repaint();
+    }
 }
 
 bool StemmerizerEditor::keyPressed (const juce::KeyPress& k)
@@ -262,8 +360,10 @@ bool StemmerizerEditor::keyPressed (const juce::KeyPress& k)
 
 void StemmerizerEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (col (ui::Theme::kBackground));
-
+    // Single opaque gradient pass covers the entire local bounds — the
+    // gradient endpoints are both kBackground (alpha=ff), so no fillAll
+    // pre-pass is needed. setOpaque(true) in the ctor confirms to JUCE
+    // we own every pixel here.
     juce::ColourGradient grad (col (ui::Theme::kBackground).brighter (0.02f), 0.f, 0.f,
                                col (ui::Theme::kBackground),                  0.f, (float) getHeight(),
                                false);
@@ -287,89 +387,45 @@ void StemmerizerEditor::resized()
     versionLabel.setBounds (header.removeFromLeft (60).withTrimmedTop (20).withTrimmedBottom (16));
     folderButton.setBounds (header.removeFromRight (36).withSizeKeepingCentre (28, 28));
 
+    // ---- recent splits strip (full-width, between header and body) ----
+    // Only visible if we have at least one entry — collapses to zero height
+    // otherwise so the empty state isn't pushed down by dead chrome.
+    if (recentBar.isVisible())
+    {
+        constexpr int kRecentBarH = 80;
+        auto barArea = r.removeFromTop (kRecentBarH).reduced (ui::Theme::kPad, 0);
+        recentBar.setBounds (barArea);
+        r.removeFromTop (ui::Theme::kGap);
+    }
+
     // ---- body ----
     r.reduce (ui::Theme::kPad, ui::Theme::kPad);
 
-    // Progressive disclosure: until a session is loaded, the right-hand
-    // player column (transport + loop region + stem mixer) has nothing
-    // useful to show. Hide it entirely so the drop zone becomes the
-    // single focal point of the empty state — the user's only next
-    // action is "drop a file". After a split completes the column flips
-    // back in (see onSessionChanged -> resized()).
     const bool sessionLoaded = processor.session().isLoaded();
     transport .setVisible (sessionLoaded);
     loopRegion.setVisible (sessionLoaded);
     mixer     .setVisible (sessionLoaded);
 
-    juce::Rectangle<int> left;
-    juce::Rectangle<int> right;
-    if (sessionLoaded)
+    // ---- Settings strip: now a FULL-WIDTH band at the top of the body.
+    // Was previously inside the left column, which forced the column to
+    // be ~470 px wide just to fit "model · format · output folder" on a
+    // single row. Lifting it out lets the body split below get aggressive
+    // (260 px sidebar / ~75% hero) without cramping the dropdowns.
     {
-        const int leftWidth = juce::jmax (380, r.getWidth() * 4 / 10);
-        left  = r.removeFromLeft (leftWidth);
-        r.removeFromLeft (ui::Theme::kPad);
-        right = r;
-    }
-    else
-    {
-        // No session yet — full-width left column, no right column.
-        left  = r;
-        right = {};
-    }
-
-    // ---- Left column: settings (top, compact) → drop zone (middle, hero)
-    //                    → job queue (bottom).
-    {
-        // Decide between a single-row strip and a stacked two-row strip.
         const bool stack = getWidth() < kStackBelowPx;
-        const int stripH = stack ? kSettingsStripH2Row : kSettingsStripH;
+        const int  stripH = stack ? kSettingsStripH2Row : kSettingsStripH;
 
-        auto strip = left.removeFromTop (stripH);
-        left.removeFromTop (ui::Theme::kGap);
+        auto strip = r.removeFromTop (stripH);
+        r.removeFromTop (ui::Theme::kGap);
 
-        // --- Dynamic queue panel ---
-        // 0 jobs  -> hidden (no panel at all, drop zone gets all the space)
-        // 1 job   -> slim 1-row strip (~70 px) at the bottom, no header
-        // 2+ jobs -> full queue panel (300 px) with header + scrollable list
-        const int totalJobs  = jobList.totalJobCount();
-        const int activeJobs = jobList.activeJobCount();
-        const bool compact   = (totalJobs == 1);
-        const bool hidden    = (totalJobs == 0);
-
-        jobList.setCompactMode (compact);
-        jobList.setVisible (! hidden);
-
-        if (! hidden)
-        {
-            const int queueH = compact ? 70 : 300;
-            auto jobs = left.removeFromBottom (queueH);
-            left.removeFromBottom (ui::Theme::kGap);
-            jobList.setBounds (jobs);
-        }
-        else
-        {
-            jobList.setBounds ({});   // off-screen / size 0
-        }
-
-        // Drop zone fills the middle — visual hero. When there's NO queue
-        // it occupies the entire remaining column, which gives the empty
-        // state a strong, single focal point for onboarding.
-        dropZone.setBounds (left);
-
-        juce::ignoreUnused (activeJobs);   // (reserved for future "queue badge" UI)
-
-        // --- Settings strip layout ---
         constexpr int kLabelH = 14;
         constexpr int kCtrlH  = 38;
         constexpr int kGapY   = 4;
 
         if (! stack)
         {
-            // One row, three inline groups: model | format | output (wide).
             const int totalW = strip.getWidth();
             const int gap    = ui::Theme::kPad;
-
-            // ~22% model, ~22% format, rest output.
             const int modelW  = juce::jmax (160, totalW * 22 / 100);
             const int formatW = juce::jmax (160, totalW * 22 / 100);
             const int outW    = totalW - modelW - formatW - gap * 2;
@@ -393,7 +449,6 @@ void StemmerizerEditor::resized()
         }
         else
         {
-            // Stacked: row 1 = model + format, row 2 = output folder.
             auto row1 = strip.removeFromTop (kSettingsStripH);
             strip.removeFromTop (ui::Theme::kPadSm);
             auto row2 = strip;
@@ -417,17 +472,84 @@ void StemmerizerEditor::resized()
         }
     }
 
-    // ---- Right column: transport (top), loop strip, mixer fills the rest. ----
-    // Only laid out when the right column is actually visible (i.e. a
-    // session is loaded). Otherwise the components are hidden and their
-    // bounds don't matter; we zero them out so nothing stale paints if
-    // visibility is toggled back later.
+    // ---- Body split: sidebar (drop + queue) | hero (transport + mixer) ----
+    juce::Rectangle<int> left;
+    juce::Rectangle<int> right;
+
+    if (sessionLoaded)
+    {
+        // Stems are the centerpiece — give them ~75% of the body.
+        // Sidebar is just for the drop-another affordance + queue strip.
+        const int sidebarW = juce::jlimit (220, 280, r.getWidth() / 4);
+        left  = r.removeFromLeft (sidebarW);
+        r.removeFromLeft (ui::Theme::kPad);
+        right = r;
+    }
+    else
+    {
+        // No session yet — drop zone fills the whole body. Right column
+        // doesn't exist on screen until the first split completes.
+        left  = r;
+        right = {};
+    }
+
+    // ---- Left column: drop zone (top/middle) + queue strip (bottom) ----
+    {
+        // Queue state -> panel height.
+        const int totalJobs  = jobList.totalJobCount();
+        const int activeJobs = jobList.activeJobCount();
+        const bool compact   = (totalJobs == 1);
+        const bool hidden    = (totalJobs == 0);
+
+        jobList.setCompactMode (compact);
+        jobList.setVisible (! hidden);
+
+        if (! hidden)
+        {
+            const int queueH = compact ? 92 : 300;
+            auto jobs = left.removeFromBottom (queueH);
+            left.removeFromBottom (ui::Theme::kGap);
+            jobList.setBounds (jobs);
+        }
+        else
+        {
+            jobList.setBounds ({});
+        }
+
+        // Drop zone bounds:
+        //   * Session loaded  -> compact "drop another?" affordance at
+        //     the top of the sidebar (max 220 px).
+        //   * Empty state     -> centred "hero card" capped at 760×420 so
+        //     the bordered drop area doesn't stretch to fill 1100×600 of
+        //     surface (which read as overwhelming, per audit feedback).
+        if (sessionLoaded)
+        {
+            const int dropH = juce::jmin (220, left.getHeight());
+            auto drop = left.removeFromTop (dropH);
+            dropZone.setBounds (drop);
+        }
+        else
+        {
+            const int dropW = juce::jmin (kEmptyDropMaxW, left.getWidth());
+            const int dropH = juce::jmin (kEmptyDropMaxH, left.getHeight());
+            const int dropX = left.getX() + (left.getWidth()  - dropW) / 2;
+            const int dropY = left.getY() + (left.getHeight() - dropH) / 2;
+            dropZone.setBounds (dropX, dropY, dropW, dropH);
+        }
+
+        juce::ignoreUnused (activeJobs);   // reserved for future badge UI
+    }
+
+    // ---- Right column (hero): transport, loop, stems mixer ----
     if (sessionLoaded && right.getWidth() > 0)
     {
         transport.setBounds (right.removeFromTop (56));
         right.removeFromTop (ui::Theme::kPadSm);
-        loopRegion.setBounds (right.removeFromTop (40));
+        loopRegion.setBounds (right.removeFromTop (56));
         right.removeFromTop (ui::Theme::kGap);
+        // Stems mixer fills everything else and gets the lion's share of
+        // the body real estate — that's the user's primary work surface
+        // once a split is loaded.
         mixer.setBounds (right);
     }
     else

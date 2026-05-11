@@ -89,6 +89,10 @@ private:
     std::condition_variable cv;
     std::deque<Job>         queue;
     std::atomic<bool>       quit { false };
+    // shutdown is distinct from quit: quit asks the worker to leave the
+    // outer wait when idle, shutdown forces an in-flight inference to
+    // bail out via the per-job cancel watcher. Both go up in ~JobQueue.
+    std::atomic<bool>       shutdown { false };
     std::atomic<int>        nextId { 1 };
     std::atomic<int>        cancelId { 0 };
     std::thread             worker;

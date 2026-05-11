@@ -84,6 +84,23 @@ void JobList::refresh()
     repaint();
 }
 
+int JobList::activeJobCount() const noexcept
+{
+    int n = 0;
+    for (const auto& r : snapshot)
+        if (r.state == dsp::Job::State::Queued
+         || r.state == dsp::Job::State::Running) ++n;
+    return n;
+}
+
+void JobList::setCompactMode (bool compact)
+{
+    if (compact == compactMode) return;
+    compactMode = compact;
+    resized();
+    repaint();
+}
+
 void JobList::rebuildSnapshot()
 {
     snapshot.clear();
@@ -129,37 +146,31 @@ void JobList::paint (juce::Graphics& g)
     g.setColour (Theme::col (Theme::kBorder));
     g.drawRoundedRectangle (bounds, Theme::kRadiusLarge, 1.f);
 
+    if (snapshot.empty()) return;   // empty list draws nothing (editor hides us)
+
+    // ---- Inner area: compact mode skips the header, full mode draws it.
     auto inner = getLocalBounds().reduced (Theme::kPad);
-    auto header = inner.removeFromTop (kHeaderH);
-
-    g.setColour (Theme::col (Theme::kTextPrimary));
-    g.setFont (Theme::heading());
-    g.drawText ("queue", header.removeFromLeft (200), juce::Justification::centredLeft);
-
-    int active = 0, done = 0;
-    for (const auto& s : snapshot)
+    if (! compactMode)
     {
-        if (s.state == dsp::Job::State::Running || s.state == dsp::Job::State::Queued) active++;
-        if (s.state == dsp::Job::State::Done) done++;
-    }
-    g.setColour (Theme::col (Theme::kTextTertiary));
-    g.setFont (Theme::caption());
-    g.drawText (snapshot.empty()
-                  ? juce::String ("0 jobs")
-                  : juce::String (active) + " active   |   " + juce::String (done) + " done",
-                header, juce::Justification::centredRight);
+        auto header = inner.removeFromTop (kHeaderH);
 
-    if (snapshot.empty())
-    {
+        g.setColour (Theme::col (Theme::kTextPrimary));
+        g.setFont (Theme::heading());
+        g.drawText ("queue", header.removeFromLeft (200), juce::Justification::centredLeft);
+
+        int active = 0, done = 0;
+        for (const auto& s : snapshot)
+        {
+            if (s.state == dsp::Job::State::Running || s.state == dsp::Job::State::Queued) active++;
+            if (s.state == dsp::Job::State::Done) done++;
+        }
         g.setColour (Theme::col (Theme::kTextTertiary));
-        g.setFont (Theme::body());
-        g.drawText ("no jobs yet  -  drop a file to begin",
-                    inner.withTrimmedTop (40),
-                    juce::Justification::centredTop);
-        return;
-    }
+        g.setFont (Theme::caption());
+        g.drawText (juce::String (active) + " active   |   " + juce::String (done) + " done",
+                    header, juce::Justification::centredRight);
 
-    inner.removeFromTop (Theme::kPad);
+        inner.removeFromTop (Theme::kPad);
+    }
 
     // Clip rows to the inner area so off-screen rows don't smear the header
     // / panel border while scrolling.
@@ -267,11 +278,18 @@ void JobList::paint (juce::Graphics& g)
 void JobList::resized()
 {
     auto inner = getLocalBounds().reduced (Theme::kPad);
-    inner.removeFromTop (kHeaderH + Theme::kPad);
+    if (! compactMode)
+        inner.removeFromTop (kHeaderH + Theme::kPad);
 
     clampScroll();
 
+    // Compact mode = one slim row. Center it vertically inside the
+    // available area so the filename / progress / subtext breathe between
+    // the panel borders.
     int y = inner.getY() - scrollY;
+    if (compactMode && snapshot.size() == 1)
+        y = inner.getY() + std::max (0, (inner.getHeight() - kRowH) / 2);
+
     for (auto& rs : snapshot)
     {
         rs.bounds = juce::Rectangle<int> (inner.getX(), y, inner.getWidth(), kRowH);

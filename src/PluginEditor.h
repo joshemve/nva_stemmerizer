@@ -57,7 +57,7 @@ private:
     ui::StemmerizerLookAndFeel laf;
 
     // ---- Header ----
-    juce::Label    titleLabel    { {}, "STEMMERIZER" };
+    juce::Label    titleLabel    { {}, "NVA STEMMERIZER" };
     juce::Label    versionLabel;
     // NOTE: settingsButton is intentionally not instantiated/added yet — no
     // settings panel exists. Re-enable here and in PluginEditor.cpp once a

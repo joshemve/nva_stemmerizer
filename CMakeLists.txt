@@ -18,10 +18,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # ---- Branding ------------------------------------------------------------
 set(STEMMERIZER_COMPANY        "NVA Audio")
 set(STEMMERIZER_COMPANY_DOMAIN "com.nvaaudio")
-set(STEMMERIZER_PRODUCT_NAME   "Stemmerizer")
+set(STEMMERIZER_PRODUCT_NAME   "NVA Stemmerizer")
 set(STEMMERIZER_PLUGIN_CODE    "Stmz")
 set(STEMMERIZER_MFR_CODE       "Nvaa")
-set(STEMMERIZER_BUNDLE_ID      "${STEMMERIZER_COMPANY_DOMAIN}.${STEMMERIZER_PRODUCT_NAME}")
+# Bundle ID hardcoded (no space): reverse-DNS strings can't contain spaces,
+# and PRODUCT_NAME now has one.
+set(STEMMERIZER_BUNDLE_ID      "${STEMMERIZER_COMPANY_DOMAIN}.NVAStemmerizer")
 
 # ---- Build options -------------------------------------------------------
 option(STEMMERIZER_BUILD_STANDALONE "Build a standalone Windows .exe alongside the plugin" ON)

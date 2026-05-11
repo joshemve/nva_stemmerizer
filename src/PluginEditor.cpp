@@ -624,7 +624,7 @@ void StemmerizerEditor::resized()
 
     // ---- header ----
     auto header = r.removeFromTop (ui::Theme::kHeaderHeight).reduced (ui::Theme::kPad, 0);
-    titleLabel.setBounds   (header.removeFromLeft (160).withTrimmedTop (16).withTrimmedBottom (16));
+    titleLabel.setBounds   (header.removeFromLeft (210).withTrimmedTop (16).withTrimmedBottom (16));
     versionLabel.setBounds (header.removeFromLeft (60).withTrimmedTop (20).withTrimmedBottom (16));
     folderButton.setBounds (header.removeFromRight (36).withSizeKeepingCentre (28, 28));
 

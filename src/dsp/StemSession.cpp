@@ -2,6 +2,7 @@
 
 #include <juce_events/juce_events.h>
 
+#include <algorithm>
 #include <atomic>
 
 namespace stemmerizer::dsp
@@ -95,11 +96,33 @@ void StemSession::setPlayOriginal (bool b)
 
 bool StemSession::playOriginal() const { return playOrig.load(); }
 
-void StemSession::addListener (Listener l) { listeners.push_back (std::move (l)); }
+StemSession::ListenerHandle StemSession::addListener (Listener l)
+{
+    std::lock_guard<std::mutex> lock (mutex);
+    const auto id = nextListenerId.fetch_add (1);
+    listeners.push_back ({ id, std::move (l) });
+    return id;
+}
+
+void StemSession::removeListener (ListenerHandle h)
+{
+    std::lock_guard<std::mutex> lock (mutex);
+    listeners.erase (std::remove_if (listeners.begin(), listeners.end(),
+                                     [h] (const ListenerSlot& s) { return s.id == h; }),
+                     listeners.end());
+}
 
 void StemSession::notifyChanged()
 {
-    auto cbs = listeners;
+    // Snapshot under the lock so the async dispatch can't race with
+    // add/remove. The captured copy holds its own owning shared_ptr-free
+    // function objects (no `this`-of-listener-vector reference).
+    std::vector<Listener> cbs;
+    {
+        std::lock_guard<std::mutex> lock (mutex);
+        cbs.reserve (listeners.size());
+        for (auto& s : listeners) cbs.push_back (s.fn);
+    }
     juce::MessageManager::callAsync ([cbs = std::move (cbs)]
     {
         for (auto& l : cbs) if (l) l();

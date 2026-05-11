@@ -104,6 +104,15 @@ private:
 
     PathLabel outputPath;
 
+    // Listener handles — we MUST deregister these in ~Editor or the
+    // backing AudioProcessor (which outlives the editor in every host)
+    // will hold dangling lambdas capturing `this`. That's how FL Studio
+    // crashed when reopening the plugin window: the destroyed editor's
+    // listener was still in the session's vector and fired on next
+    // notify, dereferencing freed memory at offset 0x18.
+    dsp::StemSession::ListenerHandle sessionListener { 0 };
+    dsp::Transport::ListenerHandle   transportListener { 0 };
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (StemmerizerEditor)
 };
 

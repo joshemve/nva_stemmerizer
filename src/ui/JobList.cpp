@@ -318,10 +318,7 @@ void JobList::mouseDown (const juce::MouseEvent& e)
             }
             if (rs.secondaryActionBounds.contains (pos))
             {
-                // No public dismiss API on JobQueue; cancel(id) is a no-op
-                // on terminal states, so the row stays put. This is the
-                // safest available fallback.
-                queue->cancel (rs.id);
+                queue->remove (rs.id);
                 return;
             }
         }
@@ -340,9 +337,7 @@ void JobList::mouseDown (const juce::MouseEvent& e)
         {
             if (rs.actionBounds.contains (pos))
             {
-                // No public dismiss API on JobQueue; cancel(id) is a no-op
-                // on terminal states. Best-effort fallback.
-                queue->cancel (rs.id);
+                queue->remove (rs.id);
                 return;
             }
         }

@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <functional>
+#include <mutex>
 #include <vector>
 
 namespace stemmerizer::dsp
@@ -39,11 +40,17 @@ public:
     void setLoopRegion (long long startSample, long long endSample);
 
     // ---- listeners --------------------------------------------------
-    using Listener = std::function<void()>;
-    void addListener    (Listener l) { listeners.push_back (std::move (l)); }
-    void notifyChanged() const;
+    // ID-based registration so transient owners can deregister cleanly
+    // (matches StemSession::addListener — see that header for rationale).
+    using Listener       = std::function<void()>;
+    using ListenerHandle = std::uint64_t;
+    ListenerHandle addListener    (Listener l);
+    void           removeListener (ListenerHandle h);
+    void           notifyChanged() const;
 
 private:
+    struct ListenerSlot { ListenerHandle id; Listener fn; };
+
     std::atomic<bool>      playing  { false };
     std::atomic<bool>      loopOn   { false };
     std::atomic<long long> pos      { 0 };
@@ -52,7 +59,9 @@ private:
     std::atomic<long long> totalLen { 0 };
     std::atomic<int>       sr       { 44100 };
 
-    std::vector<Listener>  listeners;
+    mutable std::mutex            listenerMutex;
+    std::vector<ListenerSlot>     listeners;
+    std::atomic<ListenerHandle>   nextListenerId { 1 };
 };
 
 } // namespace stemmerizer::dsp

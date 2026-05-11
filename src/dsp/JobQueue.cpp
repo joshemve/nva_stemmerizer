@@ -75,6 +75,28 @@ void JobQueue::cancel (int id)
     if (removed) notifyChange();
 }
 
+void JobQueue::remove (int id)
+{
+    bool changed = false;
+    {
+        std::lock_guard<std::mutex> lock (mutex);
+        for (auto it = queue.begin(); it != queue.end(); ++it)
+        {
+            if (it->id == id)
+            {
+                // Don't erase a job the worker is actively processing —
+                // it would lose visibility of the cancel pathway. Caller
+                // should cancel() first and wait for Cancelled state.
+                if (it->state == Job::State::Running) return;
+                queue.erase (it);
+                changed = true;
+                break;
+            }
+        }
+    }
+    if (changed) notifyChange();
+}
+
 std::vector<Job> JobQueue::snapshot() const
 {
     std::lock_guard<std::mutex> lock (mutex);

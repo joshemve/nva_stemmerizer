@@ -60,6 +60,17 @@ if(NOT EXISTS "${ORT_LIB}")
         "Run: scripts/fetch_onnxruntime.ps1 (or see README-BUILD.md).")
 endif()
 
+# Stage onnxruntime.dll into the build's bin dir AT CONFIGURE TIME so
+# juce_vst3_helper.exe (which runs from there during the VST3 POST_BUILD
+# step) can resolve it. Without this, the helper picks up a STALE
+# onnxruntime.dll from somewhere else on the system (Python, VS, Edge…),
+# detects the API-version mismatch ("requested API version [20], built
+# with [17]"), and crashes the build.
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Release")
+file(COPY "${ORT_DLL}" DESTINATION "${CMAKE_BINARY_DIR}/Release")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Debug")
+file(COPY "${ORT_DLL}" DESTINATION "${CMAKE_BINARY_DIR}/Debug")
+
 add_library(onnxruntime SHARED IMPORTED GLOBAL)
 set_target_properties(onnxruntime PROPERTIES
     IMPORTED_LOCATION "${ORT_DLL}"
@@ -229,6 +240,9 @@ target_link_libraries(Stemmerizer
     PRIVATE
         demucs.onnx.helpers  # STFT / segmentation helpers
         onnxruntime          # imported shared lib (DirectML EP inside)
+                             # — delay-loaded; see OnnxBackend.cpp for the
+                             # explicit LoadLibraryEx that locates the DLL
+                             # next to the VST3 bundle / standalone exe.
                              # (also brings vendored Eigen via PUBLIC includes)
         juce::juce_audio_utils
         juce::juce_audio_processors
@@ -257,8 +271,16 @@ endif()
 
 # ---- ONNX Runtime DLL deployment ----------------------------------------
 # The plugin DLL/exe needs onnxruntime.dll at runtime. We copy it next to
-# every built artefact (VST3 module + Standalone exe). DirectML.dll itself
-# is a Windows system component (10 1709+ / all 11) so we don't ship it.
+# every built artefact. DirectML.dll is a Windows system component
+# (10 1709+ / all 11) so we don't ship it.
+#
+# IMPORTANT: copy as PRE_LINK (not POST_BUILD). Reason: JUCE's
+# COPY_PLUGIN_AFTER_BUILD chains juce_vst3_helper.exe in the POST_BUILD
+# step — that helper LOADS our VST3 to extract its module info, which in
+# turn constructs StemmerizerProcessor -> StemSplitter -> OnnxBackend,
+# which needs onnxruntime.dll on disk. POST_BUILD ordering put our copy
+# AFTER the helper ran, so it crashed (0xC0000005). PRE_LINK guarantees
+# the DLL is in place before the helper runs.
 foreach(target_kind Standalone VST3)
     set(stem "${CMAKE_CURRENT_BINARY_DIR}/Stemmerizer_artefacts/$<CONFIG>/${target_kind}")
     if(target_kind STREQUAL "VST3")
@@ -266,7 +288,7 @@ foreach(target_kind Standalone VST3)
     else()
         set(dst "${stem}")
     endif()
-    add_custom_command(TARGET Stemmerizer_${target_kind} POST_BUILD
+    add_custom_command(TARGET Stemmerizer_${target_kind} PRE_LINK
         COMMAND ${CMAKE_COMMAND} -E make_directory "${dst}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ORT_DLL}" "${dst}/"
         VERBATIM)
@@ -287,5 +309,14 @@ if(MSVC)
     )
     target_link_options(Stemmerizer PRIVATE
         $<$<CONFIG:Release>:/LTCG>
+        # Delay-load onnxruntime.dll. Without this, FL Studio / juce_vst3_helper
+        # try to resolve the import at module-load time, fail to find the DLL
+        # in their own directory, and report "This plugin failed to load."
+        # With delay-loading, the OS only tries to resolve onnxruntime.dll on
+        # the first call into it — by which time OnnxBackend has explicitly
+        # LoadLibraryEx'd it from the VST3 bundle directory.
+        /DELAYLOAD:onnxruntime.dll
     )
+    # Provides __delayLoadHelper2 referenced by /DELAYLOAD.
+    target_link_libraries(Stemmerizer PRIVATE delayimp.lib)
 endif()

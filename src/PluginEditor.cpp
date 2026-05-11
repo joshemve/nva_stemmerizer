@@ -145,13 +145,19 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
     addAndMakeVisible (loopRegion);
     addAndMakeVisible (mixer);
 
-    processor.session().addListener ([this] { onSessionChanged(); });
+    sessionListener = processor.session().addListener ([this] { onSessionChanged(); });
 
     startTimerHz (30);
 }
 
 StemmerizerEditor::~StemmerizerEditor()
 {
+    // Order matters: stop the timer first so no late tick fires after
+    // children start destroying. Then drop every back-edge from the
+    // AudioProcessor's long-lived members to us.
+    stopTimer();
+    if (sessionListener   != 0) processor.session().removeListener (sessionListener);
+    if (transportListener != 0) processor.transport().removeListener (transportListener);
     processor.jobQueue().setChangeCallback (nullptr);
     setLookAndFeel (nullptr);
 }

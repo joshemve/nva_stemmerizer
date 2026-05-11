@@ -84,17 +84,26 @@ public:
     bool playOriginal() const;
 
     // ---- listeners --------------------------------------------------
-    using Listener = std::function<void()>;
-    void addListener (Listener l);
-    void notifyChanged();
+    // ID-based registration so transient owners (editors, panels) can
+    // deregister in their destructors and avoid the stale-`this` deref
+    // that crashed FL on plugin re-open. addListener() returns a handle;
+    // removeListener(handle) is a no-op if already removed.
+    using Listener        = std::function<void()>;
+    using ListenerHandle  = std::uint64_t;
+    ListenerHandle addListener    (Listener l);
+    void           removeListener (ListenerHandle h);
+    void           notifyChanged();
 
 private:
+    struct ListenerSlot { ListenerHandle id; Listener fn; };
+
     mutable std::mutex                  mutex;
     std::shared_ptr<const Snapshot>     snap { std::make_shared<Snapshot>() };
     std::string                         sourcePath;
     StemMixState                        mix;
     std::atomic<bool>                   playOrig { false };
-    std::vector<Listener>               listeners;
+    std::vector<ListenerSlot>           listeners;
+    std::atomic<ListenerHandle>         nextListenerId { 1 };
 };
 
 } // namespace stemmerizer::dsp

@@ -51,6 +51,12 @@ public:
     /// Cancel a queued or running job by id. No-op if already finished.
     void cancel (int id);
 
+    /// Remove a job from the queue snapshot. Intended for finished rows
+    /// (Done / Failed / Cancelled) the user wants to dismiss from the UI.
+    /// No-op on Running jobs — call cancel() first and wait for the
+    /// Cancelled state. No-op if id isn't in the queue.
+    void remove (int id);
+
     /// Snapshot of the queue for the UI.
     std::vector<Job> snapshot() const;
 

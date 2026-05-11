@@ -77,9 +77,31 @@ void Transport::setLoopRegion (long long s, long long e)
     notifyChanged();
 }
 
+Transport::ListenerHandle Transport::addListener (Listener l)
+{
+    std::lock_guard<std::mutex> lock (listenerMutex);
+    const auto id = nextListenerId.fetch_add (1);
+    listeners.push_back ({ id, std::move (l) });
+    return id;
+}
+
+void Transport::removeListener (ListenerHandle h)
+{
+    std::lock_guard<std::mutex> lock (listenerMutex);
+    listeners.erase (std::remove_if (listeners.begin(), listeners.end(),
+                                     [h] (const ListenerSlot& s) { return s.id == h; }),
+                     listeners.end());
+}
+
 void Transport::notifyChanged() const
 {
-    for (auto& l : listeners) if (l) l();
+    std::vector<Listener> cbs;
+    {
+        std::lock_guard<std::mutex> lock (listenerMutex);
+        cbs.reserve (listeners.size());
+        for (auto& s : listeners) cbs.push_back (s.fn);
+    }
+    for (auto& l : cbs) if (l) l();
 }
 
 } // namespace stemmerizer::dsp

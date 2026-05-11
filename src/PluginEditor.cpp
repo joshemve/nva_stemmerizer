@@ -1,11 +1,31 @@
 #include "PluginEditor.h"
 
+#include <fstream>
+
 namespace stemmerizer
 {
 
 namespace
 {
     using ui::Theme::col;
+
+    /// Append-only diagnostic log at %APPDATA%/Stemmerizer/crash.log.
+    /// Used to record what the plugin tried to do at every failure point —
+    /// so even when an error dialog shows, the user can paste a real trail
+    /// of the underlying technical detail to support.
+    void crashlog (const juce::String& msg)
+    {
+        const auto path = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                              .getChildFile ("Stemmerizer").getChildFile ("crash.log");
+        path.getParentDirectory().createDirectory();
+        std::ofstream f (path.getFullPathName().toStdString(), std::ios::app);
+        if (f)
+        {
+            f << juce::Time::getCurrentTime().formatted ("%Y-%m-%d %H:%M:%S").toStdString()
+              << "  " << msg.toStdString() << "\n";
+            f.flush();
+        }
+    }
 
     constexpr int kWindowWidth  = 1180;
     constexpr int kWindowHeight = 760;
@@ -67,9 +87,18 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
                           juce::FileBrowserComponent::canSelectMultipleItems,
                           [this, chooser] (const juce::FileChooser& c)
         {
-            juce::Array<juce::File> picked;
-            for (const auto& r : c.getResults()) picked.add (r);
-            if (! picked.isEmpty()) onFilesDropped (picked);
+            // Async completion runs on JUCE's message thread via a
+            // noexcept trampoline. Belt-and-braces try/catch — even
+            // though onFilesDropped is already wrapped internally,
+            // a raw juce::Array copy CAN throw bad_alloc and that
+            // path runs before onFilesDropped's own try/catch.
+            try
+            {
+                juce::Array<juce::File> picked;
+                for (const auto& r : c.getResults()) picked.add (r);
+                if (! picked.isEmpty()) onFilesDropped (picked);
+            }
+            catch (...) { /* swallow — file chooser results unusable */ }
         });
     };
 
@@ -317,8 +346,35 @@ void StemmerizerEditor::resized()
 
 void StemmerizerEditor::onFilesDropped (const juce::Array<juce::File>& files)
 {
-    for (const auto& f : files)
-        if (f.existsAsFile()) enqueueFile (f);
+    // Last-line-of-defence try/catch. Anything below (enqueueFile -> the
+    // DSP backend) may throw an Ort::Exception or std::exception. If the
+    // exception escapes us, JUCE's message-proc trampoline is effectively
+    // noexcept and Windows raises FAST_FAIL_FATAL_APP_EXIT (0xc0000409),
+    // killing the entire DAW. Show a clean error dialog instead.
+    try
+    {
+        for (const auto& f : files)
+            if (f.existsAsFile()) enqueueFile (f);
+    }
+    catch (const std::exception& e)
+    {
+        juce::AlertWindow::showAsync (
+            juce::MessageBoxOptions()
+                .withTitle ("Stemmerizer couldn't queue that file")
+                .withMessage (juce::String ("An error occurred while preparing the split:\n\n")
+                              + e.what())
+                .withButton ("OK"),
+            nullptr);
+    }
+    catch (...)
+    {
+        juce::AlertWindow::showAsync (
+            juce::MessageBoxOptions()
+                .withTitle ("Stemmerizer couldn't queue that file")
+                .withMessage ("An unknown error occurred while preparing the split.")
+                .withButton ("OK"),
+            nullptr);
+    }
 }
 
 void StemmerizerEditor::enqueueFile (const juce::File& f)
@@ -340,20 +396,45 @@ void StemmerizerEditor::enqueueFile (const juce::File& f)
     const auto weightsDir = processor.resolveWeightsDir().getFullPathName().toStdString();
     if (! processor.jobQueue().ensureModel (weightsDir, job.options.model, err))
     {
-        // Keep the gritty diagnostic in the log/console only — end users
-        // shouldn't see python commands or a CDN URL in an alert.
-        DBG ("Stemmerizer: weights missing. searched=\""
-             << juce::String (weightsDir)
-             << "\" details=" << juce::String (err));
+        // Surface the actual technical reason in the dialog AND in
+        // crash.log. With the host-stability fixes in place, every failure
+        // path returns a meaningful err string instead of crashing —
+        // the only way the user is going to be unstuck is by seeing it.
+        const juce::String detail = juce::String (err);
+        crashlog ("[ensureModel] searched=\"" + juce::String (weightsDir)
+                   + "\"  detail=\"" + detail + "\"");
 
-        const juce::String body =
-            "Stemmerizer needs its AI models installed before it can split audio.\n\n"
-            "The models are about 270 MB and only need to be downloaded once.\n"
-            "Please contact support or re-run the installer to fetch them.";
+        // Decide title based on whether the technical error is a missing
+        // file ("Weights file not found: ...") or something deeper.
+        const bool weightsMissing = detail.containsIgnoreCase ("weights file not found")
+                                 || weightsDir.empty();
+
+        const juce::String title = weightsMissing
+            ? "AI models not installed"
+            : "Stemmerizer couldn't initialise the AI runtime";
+
+        juce::String body;
+        if (weightsMissing)
+        {
+            body =
+                "Stemmerizer needs its AI models installed before it can split audio.\n\n"
+                "The models are about 270 MB and only need to be downloaded once.\n"
+                "Please contact support or re-run the installer to fetch them.\n\n"
+                "Searched: " + juce::String (weightsDir) + "\n"
+                "Details:  " + detail;
+        }
+        else
+        {
+            body =
+                "Stemmerizer couldn't load the AI runtime in this session.\n"
+                "Please send the line below to support — it pinpoints what went wrong:\n\n"
+                + detail
+                + "\n\nWeights dir: " + juce::String (weightsDir);
+        }
 
         juce::AlertWindow::showAsync (
             juce::MessageBoxOptions()
-                .withTitle ("AI models not installed")
+                .withTitle (title)
                 .withMessage (body)
                 .withButton ("OK"),
             nullptr);
@@ -371,13 +452,21 @@ void StemmerizerEditor::browseOutputDir()
     raw->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
                       [this, chooser] (const juce::FileChooser& c)
     {
-        const auto r = c.getResult();
-        if (r.isDirectory())
+        // FileChooser's async completion lambda runs on JUCE's message
+        // thread via a noexcept trampoline. If anything inside throws
+        // (ValueTree reallocation, Label setText on stale component,
+        // etc.) it escapes the trampoline and kills the host. Guard.
+        try
         {
-            processor.state().setProperty ("outputDir", r.getFullPathName(), nullptr);
-            outputPath.setText (r.getFullPathName(), juce::dontSendNotification);
-            outputPath.setTooltip (r.getFullPathName());
+            const auto r = c.getResult();
+            if (r.isDirectory())
+            {
+                processor.state().setProperty ("outputDir", r.getFullPathName(), nullptr);
+                outputPath.setText (r.getFullPathName(), juce::dontSendNotification);
+                outputPath.setTooltip (r.getFullPathName());
+            }
         }
+        catch (...) { /* user picked a weird path; ignore */ }
     });
 }
 

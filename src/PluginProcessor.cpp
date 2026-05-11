@@ -36,8 +36,19 @@ StemmerizerProcessor::StemmerizerProcessor()
 
 StemmerizerProcessor::~StemmerizerProcessor() = default;
 
-void StemmerizerProcessor::prepareToPlay (double, int) {}
-void StemmerizerProcessor::releaseResources() {}
+void StemmerizerProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    hostSampleRate = sampleRate;
+    maxBlockSize   = samplesPerBlock;
+    scratchL.assign ((size_t) samplesPerBlock, 0.f);
+    scratchR.assign ((size_t) samplesPerBlock, 0.f);
+}
+
+void StemmerizerProcessor::releaseResources()
+{
+    scratchL.clear(); scratchL.shrink_to_fit();
+    scratchR.clear(); scratchR.shrink_to_fit();
+}
 
 bool StemmerizerProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
@@ -55,29 +66,44 @@ void StemmerizerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     const int numFrames = buffer.getNumSamples();
     const int numCh     = buffer.getNumChannels();
 
-    // Always start from silence — Stemmerizer is a "generator" plugin from
-    // the host's perspective when there's a session loaded; otherwise pass
-    // through silence (NOT host audio — we'd risk leaking the input mix
-    // when no stems are loaded).
+    // Always start from silence — Stemmerizer is a "generator" from the
+    // host's perspective when there's a session loaded; without a session
+    // it emits silence (we don't pass host audio through — that would
+    // leak the input mix when no stems are available).
     buffer.clear();
 
     if (numFrames <= 0 || numCh <= 0) return;
 
+    // Lock-free atomic load of the current snapshot — buffers stay alive
+    // for the duration of this block thanks to the shared_ptr we hold.
     auto snap = sess.currentSnapshot();
     if (! snap || snap->numFrames <= 0 || snap->stems.empty()) return;
 
-    // Render into temp planes, then copy out to whatever channel layout the
-    // host provided.
-    juce::HeapBlock<float> tempL (numFrames);
-    juce::HeapBlock<float> tempR (numFrames);
+    // Sample-rate adaptation: session is at 44.1k (or whatever the file
+    // was), host can be at 48k/96k/etc. The renderer reads from the
+    // source buffer with linear interpolation, stepping by srcPerOut
+    // samples per output frame.
+    const double srcPerOut = (double) snap->sampleRate
+                           / std::max (1.0, hostSampleRate);
+
+    // Use the prepareToPlay-resident scratch buffers. If somehow the host
+    // calls processBlock with a larger block than declared, fall back to
+    // resizing on this call (rare; not the steady-state path).
+    if ((int) scratchL.size() < numFrames)
+    {
+        scratchL.resize ((size_t) numFrames);
+        scratchR.resize ((size_t) numFrames);
+    }
 
     dsp::MixRenderer::render (*snap, sess.mixState(), tport,
-                              tempL.getData(), tempR.getData(), numFrames);
+                              sess.playOriginal(),
+                              srcPerOut,
+                              scratchL.data(), scratchR.data(), numFrames);
 
     if (numCh >= 2)
     {
-        std::copy_n (tempL.getData(), numFrames, buffer.getWritePointer (0));
-        std::copy_n (tempR.getData(), numFrames, buffer.getWritePointer (1));
+        std::copy_n (scratchL.data(), numFrames, buffer.getWritePointer (0));
+        std::copy_n (scratchR.data(), numFrames, buffer.getWritePointer (1));
         for (int c = 2; c < numCh; ++c) buffer.clear (c, 0, numFrames);
     }
     else
@@ -85,7 +111,7 @@ void StemmerizerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         // Mono: average L+R.
         auto* dst = buffer.getWritePointer (0);
         for (int i = 0; i < numFrames; ++i)
-            dst[i] = 0.5f * (tempL[i] + tempR[i]);
+            dst[i] = 0.5f * (scratchL[(size_t) i] + scratchR[(size_t) i]);
     }
 }
 

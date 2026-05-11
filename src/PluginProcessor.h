@@ -63,6 +63,17 @@ private:
     dsp::Transport      tport;
     dsp::JobQueue       queue;
 
+    // ---- prepareToPlay-resident audio buffers ---------------------------
+    // Persistent stereo planes used by processBlock to receive MixRenderer
+    // output before copying into the host's bus. Sized once in
+    // prepareToPlay so processBlock has no heap traffic on the audio
+    // thread (was a real-time-safety violation when these were per-block
+    // juce::HeapBlocks).
+    std::vector<float>  scratchL;
+    std::vector<float>  scratchR;
+    double              hostSampleRate { 44100.0 };
+    int                 maxBlockSize   { 0 };
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (StemmerizerProcessor)
 };
 

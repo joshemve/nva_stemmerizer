@@ -62,8 +62,11 @@ public:
 
     /// Set a callback fired on the message thread whenever job state changes.
     /// (We post to the JUCE message manager from inside the worker.)
+    /// Thread-safe to call from any thread (typically the editor's ctor /
+    /// dtor on the message thread); internally guarded against the worker
+    /// invoking the callback at the same time it's being reassigned.
     using ChangeCallback = std::function<void()>;
-    void setChangeCallback (ChangeCallback cb) { onChange = std::move (cb); }
+    void setChangeCallback (ChangeCallback cb);
 
     /// Set a callback fired when a job finishes successfully, BEFORE the
     /// stems are written to disk. Receives the input path, decoded original
@@ -76,7 +79,7 @@ public:
                                                 int numChannels,
                                                 long long numFrames,
                                                 const SplitResult&)>;
-    void setFinishedCallback (FinishedCallback cb) { onFinished = std::move (cb); }
+    void setFinishedCallback (FinishedCallback cb);
 
 private:
     void workerLoop();
@@ -91,6 +94,12 @@ private:
     std::thread             worker;
 
     StemSplitter            splitter;
+
+    // Callbacks are read on the worker thread and written on the message
+    // thread. std::function is not internally synchronized, so concurrent
+    // assignment+invoke is UB. Guard with their own mutex (separate from
+    // the queue mutex to avoid priority inversion).
+    mutable std::mutex      callbackMutex;
     ChangeCallback          onChange;
     FinishedCallback        onFinished;
 };

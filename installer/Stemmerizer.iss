@@ -3,7 +3,7 @@
 ; Builds a single .exe installer that lays down:
 ;   - Stemmerizer.vst3      → %CommonProgramFiles%\VST3\
 ;   - Stemmerizer.exe       → install dir (standalone)
-;   - weights\*.gguf        → install dir\weights\
+;   - weights\*.onnx + *.onnx.data → %APPDATA%\Stemmerizer\weights\
 ;   - legal\*.md            → install dir\legal\
 ;   - Microsoft VC++ Redist → only if missing
 ;
@@ -63,16 +63,30 @@ Name: "models\6stem"; Description: "6-stem (htdemucs_6s)";  Types: full
 Name: "desktopicon"; Description: "Create a desktop shortcut for the standalone"; GroupDescription: "Additional shortcuts:"; Components: standalone
 
 [Files]
-; Plugin VST3 — JUCE produces a directory bundle on Windows. Inno copies it recursively.
+; Plugin VST3 — JUCE produces a directory bundle on Windows; Inno copies
+; it recursively. This brings the .vst3 module AND stemonnx.dll (our
+; renamed ONNX Runtime, copied beside the VST3 by the CMake PRE_LINK
+; step) into Program Files in one shot.
 Source: "{#BuildDir}\VST3\Stemmerizer.vst3\*"; DestDir: "{commoncf}\VST3\Stemmerizer.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: vst3
 
-; Standalone exe
-Source: "{#BuildDir}\Standalone\Stemmerizer.exe"; DestDir: "{app}"; Flags: ignoreversion; Components: standalone
+; Standalone exe + its own copy of stemonnx.dll (same reasoning: the
+; CMake post-build puts it beside Stemmerizer.exe).
+Source: "{#BuildDir}\Standalone\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs; Components: standalone
 
-; Weights
-Source: "..\resources\weights\htdemucs.gguf";    DestDir: "{app}\weights"; Flags: ignoreversion; Components: models\fast
-Source: "..\resources\weights\htdemucs_ft.gguf"; DestDir: "{app}\weights"; Flags: ignoreversion skipifsourcedoesntexist; Components: models\hq
-Source: "..\resources\weights\htdemucs_6s.gguf"; DestDir: "{app}\weights"; Flags: ignoreversion skipifsourcedoesntexist; Components: models\6stem
+; AI model weights. Demucs v4 ships as a tiny graph file (.onnx) plus
+; an external data blob (.onnx.data) holding ~168 MB of weights — BOTH
+; must land in the same directory or ORT can't resolve the external data.
+;
+; Destination: %APPDATA%\Stemmerizer\weights\ — this is the per-user
+; data folder our PluginProcessor::resolveWeightsDir() looks at by
+; default. It also survives uninstall/reinstall cycles, so users don't
+; re-download 270 MB every time they update the plugin.
+Source: "..\resources\weights\htdemucs.onnx";        DestDir: "{userappdata}\Stemmerizer\weights"; Flags: ignoreversion; Components: models\fast
+Source: "..\resources\weights\htdemucs.onnx.data";   DestDir: "{userappdata}\Stemmerizer\weights"; Flags: ignoreversion; Components: models\fast
+Source: "..\resources\weights\htdemucs_ft.onnx";     DestDir: "{userappdata}\Stemmerizer\weights"; Flags: ignoreversion skipifsourcedoesntexist; Components: models\hq
+Source: "..\resources\weights\htdemucs_ft.onnx.data";DestDir: "{userappdata}\Stemmerizer\weights"; Flags: ignoreversion skipifsourcedoesntexist; Components: models\hq
+Source: "..\resources\weights\htdemucs_6s.onnx";     DestDir: "{userappdata}\Stemmerizer\weights"; Flags: ignoreversion skipifsourcedoesntexist; Components: models\6stem
+Source: "..\resources\weights\htdemucs_6s.onnx.data";DestDir: "{userappdata}\Stemmerizer\weights"; Flags: ignoreversion skipifsourcedoesntexist; Components: models\6stem
 
 ; Legal
 Source: "..\legal\EULA.md";          DestDir: "{app}\legal"; Flags: ignoreversion; Components: core

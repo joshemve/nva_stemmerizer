@@ -4,6 +4,16 @@
 
 #include <juce_core/juce_core.h>
 
+#ifdef _WIN32
+  #ifndef NOMINMAX
+    #define NOMINMAX
+  #endif
+  #ifndef WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN
+  #endif
+  #include <windows.h>   // GetCurrentProcessId
+#endif
+
 #include <chrono>
 #include <filesystem>
 #include <vector>
@@ -78,10 +88,16 @@ juce::File DragExporter::scratchDir()
                           .getChildFile ("Stemmerizer");
     base.createDirectory();
 
-    // Unique-per-process scratch subdir. JUCE 8 doesn't expose getProcessID
-    // cross-platform, so we use the launch-time millis instead — collision
-    // probability is effectively zero for our purposes.
+    // Unique-per-process scratch subdir. Use the actual OS PID (truly
+    // unique among live processes); fall back to launch-time millis if a
+    // platform we haven't covered shows up. Two Stemmerizer instances
+    // loaded into two DAW tracks during project load happen close enough
+    // in wall-clock time that the prior millis-only scheme could collide.
+   #ifdef _WIN32
+    static const juce::String pidStr = juce::String ((juce::int64) ::GetCurrentProcessId());
+   #else
     static const juce::String pidStr = juce::String ((juce::int64) juce::Time::currentTimeMillis());
+   #endif
     const auto sub = base.getChildFile (pidStr);
     sub.createDirectory();
     return sub;

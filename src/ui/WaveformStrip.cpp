@@ -13,17 +13,42 @@ WaveformStrip::WaveformStrip (dsp::Transport& t) : transport (t)
 
 WaveformStrip::~WaveformStrip() = default;
 
-void WaveformStrip::setSource (const float* interleaved,
-                               long long numFrames,
-                               int numChannels,
-                               int sampleRate)
+void WaveformStrip::setStem (std::shared_ptr<const dsp::StemSession::Snapshot> snap,
+                             int stemIndex)
 {
-    src       = interleaved;
-    srcFrames = numFrames;
-    srcChans  = std::max (1, numChannels);
-    srcRate   = std::max (1, sampleRate);
-    peaksWidth = -1;     // force rebuild
+    snapPtr          = std::move (snap);
+    sourceIdx        = stemIndex;
+    showingOriginal  = false;
+    peaksWidth       = -1;     // force peak rebuild on next paint
     repaint();
+}
+
+void WaveformStrip::setOriginal (std::shared_ptr<const dsp::StemSession::Snapshot> snap)
+{
+    snapPtr          = std::move (snap);
+    sourceIdx        = -1;
+    showingOriginal  = true;
+    peaksWidth       = -1;
+    repaint();
+}
+
+void WaveformStrip::clearSource()
+{
+    snapPtr.reset();
+    sourceIdx        = -1;
+    showingOriginal  = false;
+    peaksWidth       = -1;
+    peaks.clear();
+    repaint();
+}
+
+const std::vector<float>* WaveformStrip::sourceBuffer() const noexcept
+{
+    if (! snapPtr) return nullptr;
+    if (showingOriginal) return snapPtr->original.empty() ? nullptr : &snapPtr->original;
+    if (sourceIdx < 0 || sourceIdx >= (int) snapPtr->stems.size()) return nullptr;
+    const auto& s = snapPtr->stems[(size_t) sourceIdx];
+    return s.interleaved.empty() ? nullptr : &s.interleaved;
 }
 
 void WaveformStrip::resized()
@@ -37,7 +62,14 @@ void WaveformStrip::rebuildPeaks()
     if (w == peaksWidth) return;
     peaksWidth = w;
     peaks.assign ((size_t) w, {});
-    if (src == nullptr || srcFrames <= 0 || w <= 0) return;
+
+    const auto* buf = sourceBuffer();
+    if (buf == nullptr || w <= 0 || ! snapPtr) return;
+
+    const int srcChans = showingOriginal ? snapPtr->numChannels
+                                         : snapPtr->stems[(size_t) sourceIdx].numChannels;
+    const long long srcFrames = (long long) buf->size() / std::max (1, srcChans);
+    if (srcFrames <= 0) return;
 
     const double per = (double) srcFrames / (double) w;
     for (int x = 0; x < w; ++x)
@@ -48,9 +80,8 @@ void WaveformStrip::rebuildPeaks()
         float lo = 0.f, hi = 0.f;
         for (long long i = s0; i < s1; ++i)
         {
-            // Take the louder of L/R for visualization (peak meter style).
-            const float v0 = src[(size_t) (i * srcChans)];
-            const float v1 = srcChans > 1 ? src[(size_t) (i * srcChans + 1)] : v0;
+            const float v0 = (*buf)[(size_t) (i * srcChans)];
+            const float v1 = srcChans > 1 ? (*buf)[(size_t) (i * srcChans + 1)] : v0;
             const float v  = std::abs (v0) > std::abs (v1) ? v0 : v1;
             if (v < lo) lo = v;
             if (v > hi) hi = v;
@@ -61,7 +92,9 @@ void WaveformStrip::rebuildPeaks()
 
 long long WaveformStrip::sampleAtX (int x) const
 {
-    if (getWidth() <= 0 || srcFrames <= 0) return 0;
+    if (! snapPtr || getWidth() <= 0) return 0;
+    const long long srcFrames = snapPtr->numFrames;
+    if (srcFrames <= 0) return 0;
     const double frac = (double) x / (double) getWidth();
     return (long long) std::floor (juce::jlimit (0.0, 1.0, frac) * (double) srcFrames);
 }
@@ -74,7 +107,8 @@ void WaveformStrip::paint (juce::Graphics& g)
 
     if (peaksWidth != getWidth()) rebuildPeaks();
 
-    if (peaks.empty() || src == nullptr)
+    const auto* buf = sourceBuffer();
+    if (peaks.empty() || buf == nullptr)
     {
         g.setColour (Theme::col (Theme::kTextTertiary));
         g.setFont (Theme::caption());
@@ -82,7 +116,7 @@ void WaveformStrip::paint (juce::Graphics& g)
         return;
     }
 
-    const float midY = bounds.getCentreY();
+    const float midY  = bounds.getCentreY();
     const float halfH = bounds.getHeight() * 0.45f;
 
     g.setColour (col.withAlpha (0.85f));
@@ -92,13 +126,13 @@ void WaveformStrip::paint (juce::Graphics& g)
         const auto& pk = peaks[(size_t) x];
         const float yHi = midY - pk.hi * halfH;
         const float yLo = midY - pk.lo * halfH;
-        // One subpath per column so columns aren't connected diagonally.
-        p.startNewSubPath ((float) x, yHi);
+        if (x == 0) p.startNewSubPath ((float) x, yLo);
+        p.lineTo ((float) x, yHi);
         p.lineTo ((float) x, yLo);
     }
     g.strokePath (p, juce::PathStrokeType (1.0f));
 
-    // Loop region overlay
+    // Loop region overlay (transport-driven; safe to read atomically)
     if (transport.isLoopOn() && transport.length() > 0)
     {
         const float xS = (float) transport.loopStart() / (float) transport.length() * bounds.getWidth();
@@ -121,14 +155,7 @@ void WaveformStrip::paint (juce::Graphics& g)
 
 void WaveformStrip::timerCallback() { repaint(); }
 
-void WaveformStrip::mouseDown (const juce::MouseEvent& e)
-{
-    transport.seek (sampleAtX (e.x));
-}
-
-void WaveformStrip::mouseDrag (const juce::MouseEvent& e)
-{
-    transport.seek (sampleAtX (e.x));
-}
+void WaveformStrip::mouseDown (const juce::MouseEvent& e) { transport.seek (sampleAtX (e.x)); }
+void WaveformStrip::mouseDrag (const juce::MouseEvent& e) { transport.seek (sampleAtX (e.x)); }
 
 } // namespace stemmerizer::ui

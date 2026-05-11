@@ -13,8 +13,8 @@ StemSession::~StemSession() = default;
 
 std::shared_ptr<const StemSession::Snapshot> StemSession::currentSnapshot() const noexcept
 {
-    std::lock_guard<std::mutex> lock (mutex);
-    return snap;
+    // Lock-free atomic load — safe to call from the audio thread.
+    return snap.load();
 }
 
 void StemSession::loadFromResult (const std::string&    inputPath,
@@ -29,7 +29,6 @@ void StemSession::loadFromResult (const std::string&    inputPath,
     fresh->numChannels  = numChannels;
     fresh->numFrames    = numFrames;
     fresh->original     = std::move (originalInterleaved);
-    fresh->playOriginal = playOrig.load();
 
     fresh->stems.reserve (result.stems.size());
     for (const auto& s : result.stems)
@@ -41,21 +40,23 @@ void StemSession::loadFromResult (const std::string&    inputPath,
         fresh->stems.push_back (std::move (out));
     }
 
+    // sourcePath is small and the mutex is fine. The snapshot pointer
+    // itself swap is lock-free.
     {
         std::lock_guard<std::mutex> lock (mutex);
-        snap       = fresh;
         sourcePath = inputPath;
     }
+    snap.store (std::move (fresh));
 
-    mix.setStemCount ((int) fresh->stems.size());
+    mix.setStemCount ((int) result.stems.size());
     notifyChanged();
 }
 
 void StemSession::clear()
 {
+    snap.store (std::make_shared<Snapshot>());
     {
         std::lock_guard<std::mutex> lock (mutex);
-        snap       = std::make_shared<Snapshot>();
         sourcePath.clear();
     }
     mix.setStemCount (0);
@@ -64,8 +65,8 @@ void StemSession::clear()
 
 bool StemSession::isLoaded() const noexcept
 {
-    std::lock_guard<std::mutex> lock (mutex);
-    return snap && snap->numFrames > 0 && ! snap->stems.empty();
+    auto s = snap.load();
+    return s && s->numFrames > 0 && ! s->stems.empty();
 }
 
 std::string StemSession::sourceFilePath() const
@@ -76,21 +77,9 @@ std::string StemSession::sourceFilePath() const
 
 void StemSession::setPlayOriginal (bool b)
 {
+    // Just flip the atomic — no Snapshot copy. The audio thread + UI both
+    // read this via playOriginal() at the start of each block / paint.
     playOrig.store (b);
-    // Mutate the current snapshot's flag so the audio thread sees it
-    // without us needing to allocate a new snapshot just for an A/B toggle.
-    // Safe because Snapshot::playOriginal is only consumed by the audio
-    // thread and we only flip a bool here (atomic by virtue of being POD
-    // single byte aligned + write-then-flag pattern).
-    {
-        std::lock_guard<std::mutex> lock (mutex);
-        if (snap)
-        {
-            auto fresh = std::make_shared<Snapshot> (*snap);
-            fresh->playOriginal = b;
-            snap = fresh;
-        }
-    }
     notifyChanged();
 }
 
@@ -114,9 +103,6 @@ void StemSession::removeListener (ListenerHandle h)
 
 void StemSession::notifyChanged()
 {
-    // Snapshot under the lock so the async dispatch can't race with
-    // add/remove. The captured copy holds its own owning shared_ptr-free
-    // function objects (no `this`-of-listener-vector reference).
     std::vector<Listener> cbs;
     {
         std::lock_guard<std::mutex> lock (mutex);
@@ -125,7 +111,18 @@ void StemSession::notifyChanged()
     }
     juce::MessageManager::callAsync ([cbs = std::move (cbs)]
     {
-        for (auto& l : cbs) if (l) l();
+        // callAsync runs on the message thread inside a noexcept
+        // trampoline. If any listener throws (mixer.rebuild bad_alloc,
+        // a stale weak ref, anything), the exception escapes the
+        // trampoline and the host crashes with FAST_FAIL. Guard each
+        // call independently so one bad listener doesn't suppress the
+        // rest.
+        for (auto& l : cbs)
+        {
+            if (! l) continue;
+            try { l(); }
+            catch (...) { /* listener self-reported a bug; carry on */ }
+        }
     });
 }
 

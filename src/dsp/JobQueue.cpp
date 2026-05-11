@@ -103,10 +103,34 @@ std::vector<Job> JobQueue::snapshot() const
     return { queue.begin(), queue.end() };
 }
 
+void JobQueue::setChangeCallback (ChangeCallback cb)
+{
+    std::lock_guard<std::mutex> lock (callbackMutex);
+    onChange = std::move (cb);
+}
+
+void JobQueue::setFinishedCallback (FinishedCallback cb)
+{
+    std::lock_guard<std::mutex> lock (callbackMutex);
+    onFinished = std::move (cb);
+}
+
 void JobQueue::notifyChange()
 {
-    if (! onChange) return;
-    juce::MessageManager::callAsync ([cb = onChange] { if (cb) cb(); });
+    // Copy the callback under the lock — std::function copy is not
+    // synchronized internally and we'd race a concurrent set*Callback.
+    ChangeCallback cbCopy;
+    {
+        std::lock_guard<std::mutex> lock (callbackMutex);
+        cbCopy = onChange;
+    }
+    if (! cbCopy) return;
+    juce::MessageManager::callAsync ([cb = std::move (cbCopy)]
+    {
+        // Same noexcept-trampoline guard as StemSession::notifyChanged.
+        if (! cb) return;
+        try { cb(); } catch (...) { /* swallow — log only */ }
+    });
 }
 
 namespace
@@ -132,6 +156,15 @@ void JobQueue::workerLoop()
 {
     while (! quit.load())
     {
+        // Outer try/catch covers ONE iteration of the loop. Any uncaught
+        // C++ exception escaping a std::thread function calls std::terminate
+        // and kills the whole host. Mark the running job as Failed with
+        // the exception text instead, so the UI can report it cleanly.
+        // We pull `current.id` out so the catch block can update the
+        // matching queue entry by id.
+        int currentIdForCatch = 0;
+        try
+        {
         Job current;
         bool haveJob = false;
 
@@ -155,6 +188,7 @@ void JobQueue::workerLoop()
         }
 
         if (! haveJob) continue;
+        currentIdForCatch = current.id;
         notifyChange();
 
         std::atomic<bool> cancelFlag { false };
@@ -213,16 +247,26 @@ void JobQueue::workerLoop()
 
         // Hand the finished split off to the in-plugin session BEFORE we
         // write to disk — that way the user can play stems even while the
-        // disk write is still in flight.
-        if (result.success && onFinished)
+        // disk write is still in flight. Copy the callback under the lock
+        // (H1: std::function copy/assign is not internally synchronized).
+        // Also note: we MOVE decoded.interleaved here (no defensive copy);
+        // decoded is local to this iteration and not used afterwards.
+        if (result.success)
         {
-            std::vector<float> originalCopy = decoded.interleaved;
-            onFinished (current.inputPath,
-                        std::move (originalCopy),
-                        decoded.sampleRate,
-                        decoded.numChannels,
-                        decoded.numFrames,
-                        result);
+            FinishedCallback finishedCopy;
+            {
+                std::lock_guard<std::mutex> lock (callbackMutex);
+                finishedCopy = onFinished;
+            }
+            if (finishedCopy)
+            {
+                finishedCopy (current.inputPath,
+                              std::move (decoded.interleaved),
+                              decoded.sampleRate,
+                              decoded.numChannels,
+                              decoded.numFrames,
+                              result);
+            }
         }
 
         // Write enabled stems out, if successful.
@@ -277,6 +321,38 @@ void JobQueue::workerLoop()
             }
         }
         notifyChange();
+        }  // end outer try (per-iteration)
+        catch (const std::exception& e)
+        {
+            // Mark the running job as Failed and continue. NEVER allow an
+            // exception to escape the worker thread function — that would
+            // call std::terminate on the entire host process.
+            std::lock_guard<std::mutex> lock (mutex);
+            for (auto& j : queue)
+            {
+                if (j.id == currentIdForCatch)
+                {
+                    j.state        = Job::State::Failed;
+                    j.errorMessage = std::string ("Worker exception: ") + e.what();
+                    break;
+                }
+            }
+            notifyChange();
+        }
+        catch (...)
+        {
+            std::lock_guard<std::mutex> lock (mutex);
+            for (auto& j : queue)
+            {
+                if (j.id == currentIdForCatch)
+                {
+                    j.state        = Job::State::Failed;
+                    j.errorMessage = "Worker hit an unknown exception.";
+                    break;
+                }
+            }
+            notifyChange();
+        }
     }
 }
 

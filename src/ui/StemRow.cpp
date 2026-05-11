@@ -52,19 +52,14 @@ void StemRow::setStemIndex (int i)
 
 void StemRow::refreshFromSession()
 {
+    // Hand the WHOLE snapshot to the waveform — the strong shared_ptr
+    // keeps every internal buffer alive for as long as the waveform
+    // references it, even if the session swaps to a new snapshot.
     auto snap = session.currentSnapshot();
     if (snap && idx >= 0 && idx < (int) snap->stems.size())
-    {
-        const auto& s = snap->stems[(size_t) idx];
-        waveform.setSource (s.interleaved.data(),
-                            (long long) s.interleaved.size() / std::max (1, s.numChannels),
-                            s.numChannels,
-                            snap->sampleRate);
-    }
+        waveform.setStem (std::move (snap), idx);
     else
-    {
-        waveform.setSource (nullptr, 0, 0, 0);
-    }
+        waveform.clearSource();
     repaint();
 }
 

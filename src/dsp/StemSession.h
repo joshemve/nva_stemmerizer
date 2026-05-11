@@ -39,9 +39,11 @@ public:
         std::vector<float>  interleaved;
     };
 
-    /// Atomic, read-mostly snapshot for the audio thread. Holding a
-    /// shared_ptr to one of these freezes the buffers in place until the
-    /// audio block finishes.
+    /// Immutable, read-mostly snapshot of one loaded split. Stored on the
+    /// session as an atomic<shared_ptr>; the audio thread + UI both grab
+    /// their own owning copy and the buffers stay alive as long as anyone
+    /// holds a reference. NEVER mutate a published Snapshot — always
+    /// allocate a fresh one and store-replace.
     struct Snapshot
     {
         int                 sampleRate  { 44100 };
@@ -49,12 +51,16 @@ public:
         long long           numFrames   { 0 };
         std::vector<float>  original;             // input mix (interleaved)
         std::vector<Stem>   stems;
-        bool                playOriginal { false }; // A/B compare: when true,
-                                                    // route original through.
+        // NOTE: playOriginal lives on StemSession (std::atomic<bool>), NOT
+        // in here. Was here originally; a previous setPlayOriginal()
+        // implementation deep-copied the whole Snapshot (incl. hundreds of
+        // MB of audio) just to flip a bool, freeing the prior buffers and
+        // turning every WaveformStrip raw pointer into a dangling read.
     };
 
-    /// Returns the current snapshot. The audio thread should grab this
-    /// once per processBlock; lifetime is tied to the returned shared_ptr.
+    /// Returns the current snapshot. Lock-free atomic load — callers
+    /// hold a strong shared_ptr so the underlying buffers stay alive
+    /// until they drop it, even if a new session is loaded in parallel.
     std::shared_ptr<const Snapshot> currentSnapshot() const noexcept;
 
     /// Replace contents from a finished split. Called on the worker thread.
@@ -97,8 +103,15 @@ public:
 private:
     struct ListenerSlot { ListenerHandle id; Listener fn; };
 
+    // `snap` is read on the audio thread every block and written from the
+    // worker thread when a split finishes. std::atomic<shared_ptr<T>> gives
+    // us a lock-free, allocation-free swap. C++20 specifies it as part of
+    // the standard.
+    std::atomic<std::shared_ptr<const Snapshot>> snap { std::make_shared<Snapshot>() };
+
+    // Everything below is touched only from the message/worker threads,
+    // never from the audio thread, so the regular mutex is fine.
     mutable std::mutex                  mutex;
-    std::shared_ptr<const Snapshot>     snap { std::make_shared<Snapshot>() };
     std::string                         sourcePath;
     StemMixState                        mix;
     std::atomic<bool>                   playOrig { false };

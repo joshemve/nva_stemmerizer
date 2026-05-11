@@ -41,64 +41,115 @@ namespace
     constexpr int kModelSampleRate = 44100;
 
 #ifdef _WIN32
-    /// Ensure onnxruntime.dll is loaded BEFORE any ORT C++ wrapper code
-    /// touches it. The DLL ships beside the plugin binary (VST3 bundle or
-    /// standalone exe), not in the host's directory — so a normal
-    /// load-time import would fail at module-load. With /DELAYLOAD the
-    /// import is resolved on first call; we beat that by pre-loading here
-    /// with an explicit absolute path derived from our own module handle.
-    /// Idempotent + thread-safe.
-    void ensureOnnxRuntimeLoaded()
+    /// Once-only, thread-safe explicit init of ORT.
+    ///
+    /// With ORT_API_MANUAL_INIT defined, the C++ header skips its own
+    /// static initializer that would otherwise call OrtGetApiBase() at
+    /// DLL-load time and (in FL Studio's process, where some other plugin
+    /// has often already loaded a different onnxruntime.dll under the
+    /// same basename) get back the wrong-version API table — leaving
+    /// Ort::Global::api_ NULL and crashing the first Ort::Env ctor with
+    /// `Read of 0x18` (offset of CreateEnv in OrtApi).
+    ///
+    /// Instead we:
+    ///   1. Load OUR ORT shared library by its UNIQUE filename
+    ///      (stemonnx.dll) and absolute path — no possible collision
+    ///      with anyone else's onnxruntime.dll.
+    ///   2. GetProcAddress("OrtGetApiBase") on the returned handle.
+    ///   3. Call it -> OrtApi* matching OUR runtime's actual ABI.
+    ///   4. Ort::InitApi(api) — every subsequent ORT C++ wrapper call
+    ///      goes through this api_, regardless of what else is in memory.
+    ///
+    /// Returns true on success. Stash an error string if not.
+    bool ensureOnnxRuntimeLoaded (std::string& errorOut)
     {
         static std::once_flag once;
-        std::call_once (once, []()
+        static bool   succeeded { false };
+        static std::string cachedError;
+
+        std::call_once (once, [&]()
         {
-            // 1. Find OUR module path. GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
-            //    on the address of this static function returns the HMODULE
-            //    of whatever DLL/EXE contains us — i.e. the Stemmerizer
-            //    plugin DLL when hosted, or Stemmerizer.exe standalone.
+            // 1. Find OUR module path.
             HMODULE selfModule = nullptr;
-            ::GetModuleHandleExW (
-                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                reinterpret_cast<LPCWSTR>(&ensureOnnxRuntimeLoaded),
-                &selfModule);
-
-            wchar_t selfPathW [MAX_PATH] = {};
-            if (selfModule != nullptr)
-                ::GetModuleFileNameW (selfModule, selfPathW, MAX_PATH);
-
-            std::filesystem::path selfDir;
-            if (selfPathW[0] != 0)
-                selfDir = std::filesystem::path (selfPathW).parent_path();
-
-            // 2. Allow per-user override (developer / power user
-            //    redirecting to a custom build of ORT).
-            wchar_t envBuf[MAX_PATH] = {};
-            if (::GetEnvironmentVariableW (L"STEMMERIZER_ORT_DIR",
-                                           envBuf, MAX_PATH) > 0)
-                selfDir = envBuf;
-
-            // 3. Build the full path and load it. LoadLibraryExW with an
-            //    absolute path bypasses Windows's search-order entirely,
-            //    so it doesn't matter where the host process lives.
-            if (! selfDir.empty())
+            if (! ::GetModuleHandleExW (
+                    GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                    GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                    reinterpret_cast<LPCWSTR>(&ensureOnnxRuntimeLoaded),
+                    &selfModule))
             {
-                const auto fullPath = (selfDir / L"onnxruntime.dll").wstring();
-                HMODULE h = ::LoadLibraryExW (fullPath.c_str(), nullptr,
-                                              LOAD_WITH_ALTERED_SEARCH_PATH);
-                if (h != nullptr) return;
+                cachedError = "Could not resolve own module handle (GetModuleHandleExW failed).";
+                return;
             }
 
-            // 4. Last-ditch: try the default search (e.g. user dropped the
-            //    DLL into PATH or System32). If this also fails, the next
-            //    ORT call will throw with a clear "couldn't find DLL"
-            //    error which we surface to the user.
-            ::LoadLibraryW (L"onnxruntime.dll");
+            wchar_t selfPathW [MAX_PATH] = {};
+            ::GetModuleFileNameW (selfModule, selfPathW, MAX_PATH);
+            if (selfPathW[0] == 0)
+            {
+                cachedError = "Could not resolve own module path (GetModuleFileNameW failed).";
+                return;
+            }
+
+            std::filesystem::path selfDir = std::filesystem::path (selfPathW).parent_path();
+
+            // Allow developer override.
+            wchar_t envBuf [MAX_PATH] = {};
+            if (::GetEnvironmentVariableW (L"STEMMERIZER_ORT_DIR", envBuf, MAX_PATH) > 0)
+                selfDir = envBuf;
+
+            // 2. Load our unique-named DLL by absolute path. Because the
+            //    name is unique to us, Windows MUST physically load this
+            //    file from disk — it cannot satisfy the request with some
+            //    other already-loaded "onnxruntime.dll".
+            const auto fullPath = (selfDir / L"stemonnx.dll").wstring();
+            HMODULE h = ::LoadLibraryExW (fullPath.c_str(), nullptr,
+                                          LOAD_WITH_ALTERED_SEARCH_PATH);
+            if (h == nullptr)
+            {
+                const auto err = ::GetLastError();
+                cachedError = "LoadLibraryExW failed (code "
+                              + std::to_string (err)
+                              + ") for: " + std::filesystem::path (fullPath).string();
+                return;
+            }
+
+            // 3. Resolve OrtGetApiBase from the just-loaded module.
+            using GetApiBaseFn = const OrtApiBase* (ORT_API_CALL*)();
+            auto getApiBase = reinterpret_cast<GetApiBaseFn> (
+                ::GetProcAddress (h, "OrtGetApiBase"));
+            if (getApiBase == nullptr)
+            {
+                cachedError = "GetProcAddress('OrtGetApiBase') failed on stemonnx.dll.";
+                return;
+            }
+
+            const auto* apiBase = getApiBase();
+            if (apiBase == nullptr)
+            {
+                cachedError = "OrtGetApiBase() returned null.";
+                return;
+            }
+
+            // 4. Ask for OUR header's API version. If the loaded DLL is
+            //    too old, this returns null — but with stemonnx.dll we
+            //    control the version so this should always succeed.
+            const auto* api = apiBase->GetApi (ORT_API_VERSION);
+            if (api == nullptr)
+            {
+                cachedError = "ORT loaded but does not implement API version "
+                              + std::to_string (ORT_API_VERSION) +
+                              " (this should never happen with a matched stemonnx.dll).";
+                return;
+            }
+
+            Ort::InitApi (api);
+            succeeded = true;
         });
+
+        if (! succeeded) errorOut = cachedError;
+        return succeeded;
     }
 #else
-    inline void ensureOnnxRuntimeLoaded() {}
+    inline bool ensureOnnxRuntimeLoaded (std::string&) { return true; }
 #endif
 
     /// Read a .onnx file from disk into a byte buffer. demucs.onnx's
@@ -258,20 +309,31 @@ bool OnnxBackend::loadModel (const std::string& modelFile,
                              int numSourcesIn,
                              Backend preferred)
 {
+    // Outer try/catch covers EVERY ORT call inside loadModel — including
+    // those reached via demucs.onnx's load_model() which can throw from
+    // Ort::Session's ctor on bad opset / shape mismatch / oom. If we let
+    // any exception escape, the call chain ends up unwinding through a
+    // window-message callback that's effectively `noexcept`, triggering
+    // std::terminate -> abort -> FL crash (0xc0000409 / P9=7).
+    try
+    {
     lastError.clear();
     sources = numSourcesIn;
 
-    // FIRST: pre-resolve onnxruntime.dll from our plugin bundle directory
-    // (idempotent thanks to call_once). Any host that didn't already load
-    // ORT gets OUR version; if some other plugin already loaded a
-    // different version, Windows will reuse that handle — but at least
-    // the API surface is consistent for our session.
-    ensureOnnxRuntimeLoaded();
+    // FIRST: bring up ORT with our unique-named DLL. This is the ONLY
+    // path that triggers any ORT C++ wrapper machinery. If it fails the
+    // user gets a clear error message instead of a crash.
+    {
+        std::string ortErr;
+        if (! ensureOnnxRuntimeLoaded (ortErr))
+        {
+            lastError = "ONNX Runtime init failed: " + ortErr;
+            return false;
+        }
+    }
 
-    // Lazy-allocate the Ort wrappers ON THIS THREAD, ONLY when actually
-    // requested. The constructor of OnnxBackend deliberately doesn't
-    // construct these. Catch every exception so we never let one escape
-    // a context that the host can't handle.
+    // Lazy-allocate the Ort wrappers. With Ort::InitApi already done above,
+    // Ort::Env / Ort::SessionOptions construction calls a known-good api_.
     try
     {
         if (! impl->model)
@@ -280,67 +342,141 @@ bool OnnxBackend::loadModel (const std::string& modelFile,
     }
     catch (const std::exception& e)
     {
-        lastError = std::string ("ORT init failed (DLL load problem?): ") + e.what();
+        lastError = std::string ("ORT init failed (after DLL load): ") + e.what();
         return false;
     }
 
-    // Read the .onnx bytes upfront — same path both EPs use.
-    std::vector<char> modelBytes;
-    if (! readFileBytes (modelFile, modelBytes, lastError))
-        return false;
-
-    auto& options = *impl->session_options;
-    options.SetIntraOpNumThreads (0);    // 0 = ORT defaults
-    options.SetGraphOptimizationLevel (GraphOptimizationLevel::ORT_ENABLE_ALL);
-
-    auto tryDirectML = [&]() -> bool
+    // We DON'T read the .onnx into a byte buffer anymore. Demucs v4 ships
+    // as a small graph file (htdemucs.onnx) + a separate external-data
+    // file (htdemucs.onnx.data, ~168 MB of weights). ORT's bytes-based
+    // Session ctor resolves external data relative to the process's
+    // CWD — which inside FL is FL's install dir, NOT our model folder,
+    // so ORT fails with "file_size: cannot find the file specified:
+    // htdemucs.onnx.data". Loading by FILE PATH below makes ORT resolve
+    // external data relative to the .onnx file's directory. Same model,
+    // correct lookup.
+    if (! std::filesystem::exists (modelFile))
     {
-        // The DML provider factory throws on failure (e.g. no D3D12 device);
-        // we swallow the exception and fall back to CPU.
+        lastError = "Model file not found on disk: " + modelFile;
+        return false;
+    }
+
+    const std::wstring modelPathW = std::filesystem::path (modelFile).wstring();
+
+    if (! std::filesystem::exists (modelFile))
+    {
+        lastError = "Model file not found on disk: " + modelFile;
+        return false;
+    }
+
+    // ---- Session-attempt helper -----------------------------------------
+    // Builds fresh model + session_options for the requested backend +
+    // optimization profile, then creates the Ort::Session via demucs.onnx's
+    // path-based loader. On any Ort::Exception we stash the message and
+    // return false so the caller can try the next strategy.
+    auto trySession = [&] (Backend backend,
+                           GraphOptimizationLevel optLevel,
+                           bool disableMemPattern,
+                           bool sequentialExec,
+                           std::string& err) -> bool
+    {
         try
         {
-            // Adapter index 0 = system default GPU. Most users have one.
-            OrtSessionOptionsAppendExecutionProvider_DML (options, 0);
-            return true;
+            impl->model           = std::make_unique<demucsonnx::demucs_model>();
+            impl->session_options = std::make_unique<Ort::SessionOptions>();
+            auto& opt = *impl->session_options;
+
+            opt.SetIntraOpNumThreads (0);
+            opt.SetGraphOptimizationLevel (optLevel);
+            if (sequentialExec)     opt.SetExecutionMode (ORT_SEQUENTIAL);
+            if (disableMemPattern)  opt.DisableMemPattern();
+
+            if (backend == Backend::DirectML)
+            {
+                const OrtDmlApi* dml = nullptr;
+                Ort::ThrowOnError (Ort::GetApi().GetExecutionProviderApi (
+                    "DML", ORT_API_VERSION,
+                    reinterpret_cast<const void**> (&dml)));
+                if (dml == nullptr) { err = "DirectML provider not available."; return false; }
+                Ort::ThrowOnError (dml->SessionOptionsAppendExecutionProvider_DML (
+                    static_cast<OrtSessionOptions*> (opt), 0));
+            }
+            // (CPU EP is the default; no registration needed.)
+
+            const bool ok = demucsonnx::load_model_from_path (modelPathW.c_str(),
+                                                              *impl->model, opt);
+            if (! ok)
+                err = "demucs.onnx::load_model rejected the .onnx graph.";
+            return ok;
         }
-        catch (const Ort::Exception& e)
-        {
-            lastError = std::string ("DirectML init failed: ") + e.what();
-            return false;
-        }
-        catch (const std::exception& e)
-        {
-            lastError = std::string ("DirectML init failed: ") + e.what();
-            return false;
-        }
+        catch (const Ort::Exception& e) { err = e.what(); return false; }
+        catch (const std::exception& e) { err = e.what(); return false; }
     };
 
-    bool dmlOK = false;
-    if (preferred == Backend::DirectML || preferred == Backend::Auto)
-        dmlOK = tryDirectML();
+    // ---- Backend strategy ladder ----------------------------------------
+    // Demucs v4 (Hybrid Transformer) has known op-coverage friction with
+    // DirectML. The fix is NOT to disable GPU — it's to disable graph
+    // optimization fusions that DML can't handle. With ORT_DISABLE_ALL,
+    // ORT hands ops to DML as-emitted by the exporter (without fusing
+    // them into composite ops DML rejects). DML then accepts every op
+    // because each individual op IS in its kernel registry.
+    //
+    // Ladder (each rung is a complete session-creation attempt):
+    //   1. DML + DISABLE_ALL  -> most permissive, usually works for HT-Demucs
+    //   2. DML + BASIC        -> minimal fusion, sometimes needed
+    //   3. DML + EXTENDED     -> sometimes the BASIC fusions are the problem
+    //   4. CPU + ENABLE_ALL   -> guaranteed fallback (ORT CPU EP supports all ops)
+    //
+    // First rung to load successfully wins. We stash diagnostics from
+    // every failed rung in case the user reports back.
+    struct Attempt {
+        Backend backend;
+        GraphOptimizationLevel opt;
+        const char* label;
+    };
+    const Attempt ladder[] = {
+        { Backend::DirectML, ORT_DISABLE_ALL,    "DirectML (no graph opts)"   },
+        { Backend::DirectML, ORT_ENABLE_BASIC,   "DirectML (basic opts)"      },
+        { Backend::DirectML, ORT_ENABLE_EXTENDED,"DirectML (extended opts)"   },
+        { Backend::Cpu,      ORT_ENABLE_ALL,     "CPU (full opts, fallback)"  },
+    };
 
-    if (dmlOK)
+    bool loadOk = false;
+    std::string accumulatedErrors;
+
+    for (const auto& a : ladder)
     {
-        active = Backend::DirectML;
-        // DML EP works best with single-threaded ORT scheduling — let the
-        // GPU saturate via its own command queue.
-        options.SetExecutionMode (ORT_SEQUENTIAL);
-        options.DisableMemPattern();
-    }
-    else
-    {
-        // Fresh options for the CPU path — clean slate so DML residue
-        // (sequential mode etc.) doesn't carry over.
-        impl->session_options = std::make_unique<Ort::SessionOptions>();
-        impl->session_options->SetGraphOptimizationLevel (GraphOptimizationLevel::ORT_ENABLE_ALL);
-        active = Backend::Cpu;
-        lastError.clear();   // not actually an error if user wanted Auto
+        // Skip DML rungs if caller forced CPU.
+        if (preferred == Backend::Cpu && a.backend == Backend::DirectML) continue;
+
+        // Skip CPU rung if caller forced DirectML.
+        if (preferred == Backend::DirectML && a.backend == Backend::Cpu) continue;
+
+        std::string err;
+        const bool sequential       = (a.backend == Backend::DirectML);
+        const bool disableMemPattern = (a.backend == Backend::DirectML);
+
+        if (trySession (a.backend, a.opt, disableMemPattern, sequential, err))
+        {
+            active = a.backend;
+            loadOk = true;
+            // Stash a note about which rung worked, so callers / logs can see.
+            if (! accumulatedErrors.empty())
+                lastError = std::string ("Using ") + a.label
+                          + " after previous rungs failed. Earlier errors:\n"
+                          + accumulatedErrors;
+            else
+                lastError.clear();
+            break;
+        }
+        accumulatedErrors += std::string ("  - ") + a.label + ": " + err + "\n";
     }
 
-    if (! demucsonnx::load_model (modelBytes, *impl->model, *impl->session_options))
+    if (! loadOk)
     {
-        lastError = "demucs.onnx::load_model() rejected the .onnx file "
-                    "(corrupt, wrong opset, or shape mismatch).";
+        // lastError already contains the accumulated error report from
+        // every rung that failed (see the loop above).
+        lastError = "Every backend rung failed.\n" + accumulatedErrors;
         return false;
     }
 
@@ -348,6 +484,22 @@ bool OnnxBackend::loadModel (const std::string& modelFile,
     // from the model graph reliably (output shape varies by variant).
     impl->model->nb_sources = sources;
     return true;
+    }  // end outer try
+    catch (const Ort::Exception& e)
+    {
+        lastError = std::string ("ORT exception in loadModel: ") + e.what();
+        return false;
+    }
+    catch (const std::exception& e)
+    {
+        lastError = std::string ("std::exception in loadModel: ") + e.what();
+        return false;
+    }
+    catch (...)
+    {
+        lastError = "Unknown exception in loadModel.";
+        return false;
+    }
 }
 
 SplitResult OnnxBackend::split (const float* audio,

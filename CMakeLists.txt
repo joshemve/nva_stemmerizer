@@ -111,6 +111,9 @@ target_include_directories(demucs.onnx.helpers PUBLIC
     "${ORT_INCLUDE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/onnxruntime/shim"   # long-path compat
 )
+# Same manual-init flag as Stemmerizer — see the long comment on the
+# Stemmerizer target_compile_definitions block.
+target_compile_definitions(demucs.onnx.helpers PUBLIC ORT_API_MANUAL_INIT)
 target_link_libraries(demucs.onnx.helpers PUBLIC onnxruntime)
 set_target_properties(demucs.onnx.helpers PROPERTIES
     CXX_STANDARD          20
@@ -235,6 +238,15 @@ target_compile_definitions(Stemmerizer PRIVATE
     # codebase. NOMINMAX neutralizes that.
     NOMINMAX
     _USE_MATH_DEFINES
+    # CRITICAL: skip ORT's static initializer that calls OrtGetApiBase()
+    # at DLL load time. Without this, FL Studio (or any host that has
+    # another plugin's onnxruntime.dll already in memory) hands us THAT
+    # version's api_base, GetApi(20) returns NULL because the older
+    # runtime doesn't know v20, and the next api_->CreateEnv call crashes
+    # with `Read of 0x18` (the offset of CreateEnv in OrtApi). With
+    # MANUAL_INIT, Global::api_ stays null until WE explicitly resolve
+    # OrtGetApiBase from our own renamed DLL by absolute path.
+    ORT_API_MANUAL_INIT
 )
 
 # ---- Link libraries ------------------------------------------------------
@@ -290,9 +302,14 @@ foreach(target_kind Standalone VST3)
     else()
         set(dst "${stem}")
     endif()
+    # Copy AND rename to a unique filename. The host process may already
+    # have another plugin's "onnxruntime.dll" loaded under that exact name;
+    # Windows reuses by basename so a same-named DLL in our bundle would
+    # silently lose. With a unique name, our LoadLibraryExW on this path
+    # gets us guaranteed-OUR version regardless of what else is loaded.
     add_custom_command(TARGET Stemmerizer_${target_kind} PRE_LINK
         COMMAND ${CMAKE_COMMAND} -E make_directory "${dst}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ORT_DLL}" "${dst}/"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ORT_DLL}" "${dst}/stemonnx.dll"
         VERBATIM)
 endforeach()
 

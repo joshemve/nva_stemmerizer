@@ -35,6 +35,12 @@ public:
     /// no scroll). Used when totalJobCount() == 1.
     void setCompactMode (bool compact);
 
+    /// When false, rows in Done / Failed / Cancelled state are excluded
+    /// from the snapshot. Used in the loaded-state layout where finished
+    /// jobs migrate into the recents bar and the joblist strip only ever
+    /// shows actively-running work. Defaults to true.
+    void setShowDoneJobs (bool show);
+
     void paint (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
@@ -65,6 +71,7 @@ private:
     int  hoverRow { -1 };
     int  scrollY  { 0 };
     bool compactMode { false };
+    bool showDoneJobs { true };
 };
 
 } // namespace stemmerizer::ui

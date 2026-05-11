@@ -163,10 +163,15 @@ void DropZone::paint (juce::Graphics& g)
     box.removeFromTop (kIconTitleGap);
 
     // ---- Title ------------------------------------------------------
+    // Defensive fallback: under ~340 px of content width the display()
+    // (28 pt) "drop audio to split" string gets ellipsis-truncated to
+    // "drop audio to ..." which reads as broken. Drop down to heading()
+    // (18 pt) in that band so the full string fits.
+    const bool narrowContent = contentW < 340;
     {
         const auto titleArea = box.removeFromTop (kTitleH);
         g.setColour (Theme::col (Theme::kTextPrimary));
-        g.setFont (Theme::display());
+        g.setFont (narrowContent ? Theme::heading() : Theme::display());
         g.drawText (draggingOver ? "drop to split" : "drop audio to split",
                     titleArea, juce::Justification::centred);
     }
@@ -178,10 +183,16 @@ void DropZone::paint (juce::Graphics& g)
         const auto capArea = box.removeFromTop (kCaptionH);
         g.setColour (Theme::col (Theme::kTextSecondary));
         g.setFont (Theme::body());
-        g.drawText (juce::String::fromUTF8 (
-                        "WAV \xc2\xb7 FLAC \xc2\xb7 MP3 \xc2\xb7 AIFF \xc2\xb7 OGG"
-                        "  \xe2\x80\x94  or click to browse"),
-                    capArea, juce::Justification::centred);
+        // Shorten "WAV · FLAC · MP3 · AIFF · OGG  —  or click to browse"
+        // to just the format list when the content area is narrow, so the
+        // "or click to browse" tail doesn't get truncated mid-word.
+        const auto caption = narrowContent
+            ? juce::String::fromUTF8 (
+                  "WAV \xc2\xb7 FLAC \xc2\xb7 MP3 \xc2\xb7 AIFF \xc2\xb7 OGG")
+            : juce::String::fromUTF8 (
+                  "WAV \xc2\xb7 FLAC \xc2\xb7 MP3 \xc2\xb7 AIFF \xc2\xb7 OGG"
+                  "  \xe2\x80\x94  or click to browse");
+        g.drawText (caption, capArea, juce::Justification::centred);
     }
 }
 

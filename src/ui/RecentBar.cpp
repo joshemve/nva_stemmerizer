@@ -1,5 +1,7 @@
 #include "RecentBar.h"
 
+#include <algorithm>
+
 namespace stemmerizer::ui
 {
 
@@ -65,10 +67,32 @@ RecentBar::RecentBar()
 void RecentBar::setEntries (std::vector<dsp::RecentEntry> e)
 {
     entries  = std::move (e);
+
+    // Suppress the currently-loaded session — otherwise the user sees the
+    // same project appearing both "live" (in the mixer) and as a recent
+    // card, which reads as a duplicate. Compare by inputPath since the
+    // RecentProjects store dedupes on that key.
+    if (currentInputPath.isNotEmpty())
+    {
+        entries.erase (
+            std::remove_if (entries.begin(), entries.end(),
+                            [this] (const dsp::RecentEntry& r)
+                            { return r.inputPath == currentInputPath; }),
+            entries.end());
+    }
+
     hoverIdx = -1;
     armedIdx = -1;
     rebuildLayout();
     repaint();
+}
+
+void RecentBar::setCurrentInputPath (const juce::String& path)
+{
+    if (currentInputPath == path) return;
+    currentInputPath = path;
+    // We don't re-fetch entries here — the editor calls setEntries again
+    // immediately after this. Filtering happens there.
 }
 
 void RecentBar::resized()

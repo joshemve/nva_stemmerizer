@@ -101,6 +101,13 @@ void JobList::setCompactMode (bool compact)
     repaint();
 }
 
+void JobList::setShowDoneJobs (bool show)
+{
+    if (show == showDoneJobs) return;
+    showDoneJobs = show;
+    refresh();   // rebuild from current queue with the new filter applied
+}
+
 void JobList::rebuildSnapshot()
 {
     snapshot.clear();
@@ -111,6 +118,17 @@ void JobList::rebuildSnapshot()
 
     for (const auto& j : jobs)
     {
+        // In the loaded-state layout, finished jobs migrate into the
+        // recents bar — so the joblist strip only ever shows active work.
+        // Skip Done / Failed / Cancelled when the filter is on.
+        if (! showDoneJobs)
+        {
+            if (j.state == dsp::Job::State::Done
+             || j.state == dsp::Job::State::Failed
+             || j.state == dsp::Job::State::Cancelled)
+                continue;
+        }
+
         RowState rs;
         rs.id        = j.id;
         rs.filename  = juce::String (std::filesystem::path (j.inputPath).filename().string());

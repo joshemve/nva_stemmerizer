@@ -27,7 +27,15 @@ public:
     RecentBar();
 
     /// Replace the displayed entries. Triggers a layout + repaint.
+    /// Any entry whose `inputPath` matches the cached current-session path
+    /// (see setCurrentInputPath) is filtered out — the "now-loaded" project
+    /// shouldn't double up as a recent card.
     void setEntries (std::vector<dsp::RecentEntry> e);
+
+    /// Cache the currently-loaded session's source path so subsequent
+    /// setEntries() calls can suppress it from the strip. Pass an empty
+    /// string to clear the filter (no session loaded).
+    void setCurrentInputPath (const juce::String& path);
 
     /// Snapshot for outside callers (mostly tests).
     const std::vector<dsp::RecentEntry>& getEntries() const noexcept { return entries; }
@@ -68,6 +76,7 @@ private:
     int hoverIdx { -1 };
     int armedIdx { -1 };
     juce::Point<int> pressPos;
+    juce::String     currentInputPath;             // filtered out of setEntries()
 };
 
 } // namespace stemmerizer::ui

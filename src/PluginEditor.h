@@ -16,6 +16,7 @@ namespace stemmerizer
 {
 
 class StemmerizerEditor : public juce::AudioProcessorEditor,
+                          public juce::FileDragAndDropTarget,
                           private juce::Timer
 {
 public:
@@ -24,9 +25,17 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void mouseUp (const juce::MouseEvent&) override;
 
     // Keyboard transport — Space / Esc / L.
     bool keyPressed (const juce::KeyPress&) override;
+
+    // FileDragAndDropTarget — editor itself accepts drops so that the
+    // loaded-state layout (which hides the DropZone component entirely
+    // to give the mixer the full body) still receives "drop another file
+    // to split" interactions anywhere in the window.
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void filesDropped           (const juce::StringArray& files, int x, int y) override;
 
 private:
     void timerCallback() override;
@@ -35,6 +44,13 @@ private:
     void browseOutputDir();
     void onSessionChanged();   // called when the in-memory session updates
     void refreshRecentBar();   // pulls fresh entries from processor.recentProjects()
+
+    // Layout helpers
+    bool hasSession() const noexcept;
+    void applyStateVisibility (bool sessionLoaded);
+    void paintContextStrip (juce::Graphics&, juce::Rectangle<int> strip);
+    juce::String settingsSummary() const;
+    static bool  isAcceptedAudioPath (const juce::String& path);
 
     StemmerizerProcessor& processor;
 
@@ -108,6 +124,15 @@ private:
     };
 
     PathLabel outputPath;
+
+    // ---- Loaded-state context-strip state ----
+    // settingsExpanded toggles between the compact summary line (one row,
+    // ~52 px tall) and the full controls (model/format/output selectors,
+    // ~kSettingsStripH tall). Toggled by clicking the "edit" pill hit
+    // area cached in contextStripEditHit during resized().
+    bool                 settingsExpanded { false };
+    juce::Rectangle<int> contextStripEditHit;     // hit area for the edit toggle
+    juce::Rectangle<int> contextStripPaintBounds; // cached strip rect for paint()
 
     // Listener handles — we MUST deregister these in ~Editor or the
     // backing AudioProcessor (which outlives the editor in every host)

@@ -50,6 +50,14 @@ namespace
     // which reads as overwhelming rather than welcoming.
     constexpr int kEmptyDropMaxW = 760;
     constexpr int kEmptyDropMaxH = 420;
+
+    // Loaded-state metrics.
+    constexpr int kContextStripH      = 52;     // collapsed summary row
+    constexpr int kLoadedTransportH   = 56;
+    constexpr int kLoadedLoopH        = 36;
+    constexpr int kLoadedJobStripH    = 80;     // compact joblist when active
+    constexpr int kEditPillW          = 56;     // "edit" affordance hit-area width
+    constexpr int kEditPillH          = 24;
 }
 
 StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
@@ -305,6 +313,14 @@ void StemmerizerEditor::onSessionChanged()
     // column) and "session loaded" (split body). The mixer also needs to
     // rebuild its rows whenever the snapshot changes.
     mixer.rebuild();
+
+    // The recents strip filters out the now-loaded session — refresh so
+    // the filter picks up the new sourceFilePath() (or clears it on
+    // session teardown). refreshRecentBar() itself calls resized() if the
+    // strip's visibility changes; we still resized() unconditionally
+    // below so the empty-vs-loaded body layout flips.
+    refreshRecentBar();
+
     resized();
     repaint();
 }
@@ -312,8 +328,19 @@ void StemmerizerEditor::onSessionChanged()
 void StemmerizerEditor::refreshRecentBar()
 {
     auto entries = processor.recentProjects().entries();
-    const bool show = ! entries.empty();
+
+    // Push the current source path into the bar BEFORE setEntries so the
+    // filter runs in setEntries itself (the cached path is a member,
+    // setCurrentInputPath is a no-op when unchanged).
+    recentBar.setCurrentInputPath (
+        juce::String (processor.session().sourceFilePath()));
+
     recentBar.setEntries (std::move (entries));
+
+    // We have to recompute visibility from the bar's post-filter state,
+    // not the raw fetched entries — otherwise we'd briefly show an empty
+    // bar when the only recent IS the now-loaded project.
+    const bool show = ! recentBar.getEntries().empty();
     if (recentBar.isVisible() != show)
     {
         recentBar.setVisible (show);
@@ -323,6 +350,202 @@ void StemmerizerEditor::refreshRecentBar()
     {
         recentBar.repaint();
     }
+}
+
+bool StemmerizerEditor::hasSession() const noexcept
+{
+    return processor.session().isLoaded();
+}
+
+bool StemmerizerEditor::isAcceptedAudioPath (const juce::String& path)
+{
+    // Mirror DropZone::isAcceptedAudio so dropping outside the (hidden)
+    // dropzone still works in the loaded layout.
+    const auto ext = juce::File (path).getFileExtension().toLowerCase();
+    return ext == ".wav" || ext == ".flac" || ext == ".mp3"
+        || ext == ".aif" || ext == ".aiff" || ext == ".ogg";
+}
+
+bool StemmerizerEditor::isInterestedInFileDrag (const juce::StringArray& files)
+{
+    for (const auto& f : files)
+        if (isAcceptedAudioPath (f)) return true;
+    return false;
+}
+
+void StemmerizerEditor::filesDropped (const juce::StringArray& files, int, int)
+{
+    juce::Array<juce::File> picked;
+    for (const auto& f : files)
+        if (isAcceptedAudioPath (f)) picked.add (juce::File (f));
+    if (! picked.isEmpty()) onFilesDropped (picked);
+}
+
+void StemmerizerEditor::mouseUp (const juce::MouseEvent& e)
+{
+    // Only the loaded-state context strip has clickable hit areas owned
+    // by the editor (the empty-state widgets are all real child
+    // components). The strip's "edit" pill toggles settingsExpanded.
+    if (! hasSession()) return;
+    if (e.mouseWasDraggedSinceMouseDown()) return;
+    if (contextStripEditHit.isEmpty()) return;
+    if (contextStripEditHit.contains (e.getPosition()))
+    {
+        settingsExpanded = ! settingsExpanded;
+        applyStateVisibility (true);
+        resized();
+        repaint();
+    }
+}
+
+void StemmerizerEditor::applyStateVisibility (bool sessionLoaded)
+{
+    // Single place that decides which top-level widgets are visible per
+    // state. resized() calls this first so every later setBounds() lands
+    // on a component whose visibility matches its layout intent.
+    //
+    //   Empty state: dropzone hero + the full settings strip controls.
+    //   Loaded state (collapsed): no dropzone, no labels/selectors —
+    //     they collapse into the context-strip summary text.
+    //   Loaded state (expanded): selectors come back; the strip grows.
+    const bool showEmpty       = ! sessionLoaded;
+    const bool showFullControls = ! sessionLoaded || settingsExpanded;
+
+    dropZone     .setVisible (showEmpty);
+    modelLabel   .setVisible (showFullControls);
+    formatLabel  .setVisible (showFullControls);
+    outputLabel  .setVisible (showFullControls);
+    modelSelector.setVisible (showFullControls);
+    formatSelector.setVisible (showFullControls);
+    outputPath   .setVisible (showFullControls);
+
+    transport .setVisible (sessionLoaded);
+    loopRegion.setVisible (sessionLoaded);
+    mixer     .setVisible (sessionLoaded);
+}
+
+juce::String StemmerizerEditor::settingsSummary() const
+{
+    // Build the single-line summary used in the loaded-state context
+    // strip. Mirrors the wording of the dropdowns so the user maps
+    // between collapsed and expanded views without thinking.
+    const auto modelKey  = processor.state().getProperty ("model").toString();
+    const auto formatKey = processor.state().getProperty ("exportFormat").toString();
+    const auto outPath   = processor.state().getProperty ("outputDir").toString();
+
+    juce::String modelStr =
+        modelKey == "htdemucs_ft" ? juce::String::fromUTF8 ("4-stem \xc2\xb7 high quality")
+      : modelKey == "htdemucs_6s" ? juce::String::fromUTF8 ("6-stem \xc2\xb7 +guitar / piano")
+      :                             juce::String::fromUTF8 ("4-stem \xc2\xb7 fast");
+
+    juce::String fmtStr =
+        formatKey == "wav16"  ? juce::String::fromUTF8 ("WAV \xc2\xb7 16-bit")
+      : formatKey == "wav32f" ? juce::String::fromUTF8 ("WAV \xc2\xb7 32-bit float")
+      : formatKey == "flac"   ? juce::String ("FLAC")
+      : formatKey == "mp3"    ? juce::String ("MP3")
+      :                         juce::String::fromUTF8 ("WAV \xc2\xb7 24-bit");
+
+    // Path is rendered separately (mono font) by paintContextStrip — we
+    // return it joined here only for non-rendering callers / debugging.
+    juce::ignoreUnused (outPath);
+    return modelStr + "    " + fmtStr;
+}
+
+void StemmerizerEditor::paintContextStrip (juce::Graphics& g, juce::Rectangle<int> strip)
+{
+    if (strip.isEmpty()) return;
+
+    // ---- background --------------------------------------------------
+    {
+        const auto stripF = strip.toFloat().reduced (0.5f);
+        g.setColour (col (ui::Theme::kSurface));
+        g.fillRoundedRectangle (stripF, ui::Theme::kRadiusMedium);
+        g.setColour (col (ui::Theme::kBorder));
+        g.drawRoundedRectangle (stripF, ui::Theme::kRadiusMedium, 1.f);
+    }
+
+    // The pill (edit / done) is drawn in BOTH variants — its hit area is
+    // already cached by resized() in the expanded case, by the block
+    // below in the collapsed case.
+    {
+        const juce::String pillText = settingsExpanded ? "done" : "edit";
+        auto inner = strip.reduced (ui::Theme::kPad, 0);
+        const int pillY = inner.getCentreY() - kEditPillH / 2;
+
+        if (! settingsExpanded)
+        {
+            contextStripEditHit = juce::Rectangle<int> (
+                inner.getRight() - kEditPillW, pillY, kEditPillW, kEditPillH);
+        }
+        // Otherwise resized() already populated contextStripEditHit.
+
+        const auto pillF = contextStripEditHit.toFloat();
+        g.setColour (col (ui::Theme::kSurfaceHi));
+        g.fillRoundedRectangle (pillF, kEditPillH * 0.5f);
+        g.setColour (col (ui::Theme::kTextSecondary));
+        g.setFont (ui::Theme::caption());
+        g.drawText (pillText, contextStripEditHit,
+                    juce::Justification::centred, false);
+    }
+
+    // When expanded, the real ComboBox + Label children sit in the strip
+    // and own the rendering of the controls — we just painted the
+    // background and the pill, so we're done.
+    if (settingsExpanded) return;
+
+    auto inner = strip.reduced (ui::Theme::kPad, 0);
+    inner.removeFromRight (kEditPillW + ui::Theme::kPad);
+
+    // Left cluster: model · format    /path/...
+    // Approach: lay out left-to-right with explicit measured widths so
+    // the model+format pair stays anchored on the left and the path
+    // grows / shrinks against whatever room remains, truncated from
+    // the LEFT (tail-visible) when it can't fit.
+    const auto summary = settingsSummary();   // "model · variant    FMT"
+    const auto path    = processor.state().getProperty ("outputDir").toString();
+
+    const auto bodyFont    = ui::Theme::body();
+    const auto monoFont    = ui::Theme::mono();
+    const auto captionFont = ui::Theme::caption();
+
+    const int leftTextY = inner.getY();
+    const int leftTextH = inner.getHeight();
+
+    // Draw the summary (body font, primary color).
+    g.setFont (bodyFont);
+    g.setColour (col (ui::Theme::kTextPrimary));
+    const auto summaryW = (int) juce::GlyphArrangement::getStringWidth (
+                              bodyFont, summary) + 4;
+    auto summaryRect = juce::Rectangle<int> (
+        inner.getX(), leftTextY, summaryW, leftTextH);
+    g.drawText (summary, summaryRect, juce::Justification::centredLeft, false);
+
+    // Path on the right of the summary, with leading ellipsis if needed.
+    auto pathRect = juce::Rectangle<int> (
+        summaryRect.getRight() + ui::Theme::kPad, leftTextY,
+        inner.getRight() - (summaryRect.getRight() + ui::Theme::kPad),
+        leftTextH);
+
+    if (pathRect.getWidth() > 24 && path.isNotEmpty())
+    {
+        const auto ell = juce::String::fromUTF8 ("\xe2\x80\xa6");
+        auto displayed = path;
+        const float maxW = (float) pathRect.getWidth();
+        // Left-truncate: keep the tail of the path visible.
+        if (juce::GlyphArrangement::getStringWidth (monoFont, displayed) > maxW)
+        {
+            while (displayed.length() > 1
+                   && juce::GlyphArrangement::getStringWidth (
+                          monoFont, ell + displayed) > maxW)
+                displayed = displayed.substring (1);
+            displayed = ell + displayed;
+        }
+        g.setFont (monoFont);
+        g.setColour (col (ui::Theme::kTextSecondary));
+        g.drawText (displayed, pathRect, juce::Justification::centredLeft, false);
+    }
+
+    juce::ignoreUnused (captionFont);
 }
 
 bool StemmerizerEditor::keyPressed (const juce::KeyPress& k)
@@ -375,10 +598,28 @@ void StemmerizerEditor::paint (juce::Graphics& g)
     g.setColour (col (ui::Theme::kBorder));
     g.fillRect (headerArea.getX(), headerArea.getBottom() - 1,
                 headerArea.getWidth(), 1);
+
+    // In the loaded state the context strip's background and summary
+    // text are owned by the editor (no child component), so paint here.
+    // contextStripPaintBounds is populated by resized() so we don't
+    // re-derive geometry; if it's empty (empty state or no session) the
+    // helper bails out cleanly.
+    if (hasSession())
+        paintContextStrip (g, contextStripPaintBounds);
 }
 
 void StemmerizerEditor::resized()
 {
+    const bool sessionLoaded = hasSession();
+
+    // Reset cached hit-areas — only the active layout populates them.
+    contextStripEditHit     = {};
+    contextStripPaintBounds = {};
+
+    // Centralised visibility update; every child below assumes its
+    // visibility matches the current state.
+    applyStateVisibility (sessionLoaded);
+
     auto r = getLocalBounds();
 
     // ---- header ----
@@ -388,8 +629,9 @@ void StemmerizerEditor::resized()
     folderButton.setBounds (header.removeFromRight (36).withSizeKeepingCentre (28, 28));
 
     // ---- recent splits strip (full-width, between header and body) ----
-    // Only visible if we have at least one entry — collapses to zero height
-    // otherwise so the empty state isn't pushed down by dead chrome.
+    // In the loaded state the bar is *filtered* to exclude the current
+    // session — see refreshRecentBar(). Visibility is owned there too,
+    // so we just check isVisible() here.
     if (recentBar.isVisible())
     {
         constexpr int kRecentBarH = 80;
@@ -401,103 +643,209 @@ void StemmerizerEditor::resized()
     // ---- body ----
     r.reduce (ui::Theme::kPad, ui::Theme::kPad);
 
-    const bool sessionLoaded = processor.session().isLoaded();
-    transport .setVisible (sessionLoaded);
-    loopRegion.setVisible (sessionLoaded);
-    mixer     .setVisible (sessionLoaded);
-
-    // ---- Settings strip: now a FULL-WIDTH band at the top of the body.
-    // Was previously inside the left column, which forced the column to
-    // be ~470 px wide just to fit "model · format · output folder" on a
-    // single row. Lifting it out lets the body split below get aggressive
-    // (260 px sidebar / ~75% hero) without cramping the dropdowns.
+    if (sessionLoaded)
     {
-        const bool stack = getWidth() < kStackBelowPx;
-        const int  stripH = stack ? kSettingsStripH2Row : kSettingsStripH;
+        // ============================================================
+        // LOADED LAYOUT — mixer-hero, full-width.
+        //
+        //   [ context strip: settings summary  …  edit ]
+        //   [ transport (play / stop / loop / time)    ]
+        //   [ loop region                              ]
+        //   [ mixer (fills the rest)                   ]
+        //   [ joblist strip — only if active jobs > 0  ]
+        // ============================================================
+
+        // ---- 1) context strip ------------------------------------------
+        // Collapsed: 52 px summary band. Expanded: full settings strip
+        // height with the real ComboBox + Label children inside.
+        const int collapsedH = kContextStripH;
+        const int expandedH  = kSettingsStripH;
+        const int stripH     = settingsExpanded ? expandedH : collapsedH;
 
         auto strip = r.removeFromTop (stripH);
         r.removeFromTop (ui::Theme::kGap);
+        contextStripPaintBounds = strip;   // paint() will draw bg + text
 
-        constexpr int kLabelH = 14;
-        constexpr int kCtrlH  = 38;
-        constexpr int kGapY   = 4;
-
-        if (! stack)
+        if (settingsExpanded)
         {
-            const int totalW = strip.getWidth();
-            const int gap    = ui::Theme::kPad;
+            // Same layout as the empty-state inline strip, single row.
+            // We just place the controls here; paintContextStrip() only
+            // paints the panel background under them.
+            auto controls = strip.reduced (ui::Theme::kPad, 0);
+
+            constexpr int kLabelH = 14;
+            constexpr int kCtrlH  = 38;
+            constexpr int kGapY   = 4;
+
+            const int totalW  = controls.getWidth();
+            const int gap     = ui::Theme::kPad;
             const int modelW  = juce::jmax (160, totalW * 22 / 100);
             const int formatW = juce::jmax (160, totalW * 22 / 100);
-            const int outW    = totalW - modelW - formatW - gap * 2;
 
-            auto modelArea  = strip.removeFromLeft (modelW);
-            strip.removeFromLeft (gap);
-            auto formatArea = strip.removeFromLeft (formatW);
-            strip.removeFromLeft (gap);
-            auto outArea    = strip.withWidth (outW);
+            // Reserve the right edge for the "edit" pill so the user can
+            // collapse the expanded view back to the summary.
+            const int outW = totalW - modelW - formatW - gap * 3 - kEditPillW;
 
-            const auto place = [&] (juce::Rectangle<int> area, juce::Label& lbl, juce::Component& ctrl)
+            auto modelArea  = controls.removeFromLeft (modelW);
+            controls.removeFromLeft (gap);
+            auto formatArea = controls.removeFromLeft (formatW);
+            controls.removeFromLeft (gap);
+            auto outArea    = controls.removeFromLeft (juce::jmax (40, outW));
+
+            const auto place = [&] (juce::Rectangle<int> area,
+                                    juce::Label& lbl, juce::Component& ctrl)
             {
-                lbl.setBounds (area.removeFromTop (kLabelH));
+                lbl.setBounds  (area.removeFromTop (kLabelH));
                 area.removeFromTop (kGapY);
                 ctrl.setBounds (area.removeFromTop (kCtrlH));
             };
-
             place (modelArea,  modelLabel,  modelSelector);
             place (formatArea, formatLabel, formatSelector);
             place (outArea,    outputLabel, outputPath);
+
+            // Edit pill on the far right — mouseUp() reads
+            // contextStripEditHit to know where the "collapse" hit area
+            // lives in the expanded variant too.
+            controls.removeFromLeft (gap);
+            const int pillY = strip.getCentreY() - kEditPillH / 2;
+            contextStripEditHit = juce::Rectangle<int> (
+                strip.getRight() - kEditPillW - ui::Theme::kPad,
+                pillY, kEditPillW, kEditPillH);
+            // (No paint here; paintContextStrip handles the pill, but
+            // when expanded it bails out — so paint a faint outline so
+            // the user can still see the click target.)
+        }
+        // else: collapsed — paintContextStrip() draws the summary text
+        // and the "edit" pill, populates contextStripEditHit itself.
+
+        // ---- 2) transport (full-width row directly under the strip) ----
+        transport.setBounds (r.removeFromTop (kLoadedTransportH));
+        r.removeFromTop (ui::Theme::kPadSm);
+
+        // ---- 3) loop region --------------------------------------------
+        loopRegion.setBounds (r.removeFromTop (kLoadedLoopH));
+        r.removeFromTop (ui::Theme::kGap);
+
+        // ---- 5) joblist strip (active-only, compact, only if jobs) -----
+        // Configure the joblist FIRST so activeJobCount() reflects the
+        // post-filter state for this layout.
+        jobList.setShowDoneJobs (false);
+        jobList.setCompactMode  (true);
+        jobList.refresh();   // re-apply the filter against the current queue
+        const int activeJobs = jobList.activeJobCount();
+        const bool showJobs  = activeJobs > 0;
+        jobList.setVisible (showJobs);
+
+        if (showJobs)
+        {
+            auto jobs = r.removeFromBottom (kLoadedJobStripH);
+            r.removeFromBottom (ui::Theme::kGap);
+            jobList.setBounds (jobs);
         }
         else
         {
-            auto row1 = strip.removeFromTop (kSettingsStripH);
-            strip.removeFromTop (ui::Theme::kPadSm);
-            auto row2 = strip;
-
-            const int half = (row1.getWidth() - ui::Theme::kPad) / 2;
-            auto modelArea  = row1.removeFromLeft (half);
-            row1.removeFromLeft (ui::Theme::kPad);
-            auto formatArea = row1;
-
-            modelLabel .setBounds (modelArea.removeFromTop (kLabelH));
-            modelArea.removeFromTop (kGapY);
-            modelSelector.setBounds (modelArea.removeFromTop (kCtrlH));
-
-            formatLabel.setBounds (formatArea.removeFromTop (kLabelH));
-            formatArea.removeFromTop (kGapY);
-            formatSelector.setBounds (formatArea.removeFromTop (kCtrlH));
-
-            outputLabel.setBounds (row2.removeFromTop (kLabelH));
-            row2.removeFromTop (kGapY);
-            outputPath.setBounds (row2.removeFromTop (kCtrlH));
+            jobList.setBounds ({});
         }
-    }
 
-    // ---- Body split: sidebar (drop + queue) | hero (transport + mixer) ----
-    juce::Rectangle<int> left;
-    juce::Rectangle<int> right;
+        // ---- 4) mixer fills ALL remaining vertical space --------------
+        mixer.setBounds (r);
 
-    if (sessionLoaded)
-    {
-        // Stems are the centerpiece — give them ~75% of the body.
-        // Sidebar is just for the drop-another affordance + queue strip.
-        const int sidebarW = juce::jlimit (220, 280, r.getWidth() / 4);
-        left  = r.removeFromLeft (sidebarW);
-        r.removeFromLeft (ui::Theme::kPad);
-        right = r;
+        // Components used only in the empty layout collapse to zero
+        // bounds (visibility is already false from applyStateVisibility).
+        dropZone.setBounds ({});
+        if (! settingsExpanded)
+        {
+            modelLabel    .setBounds ({});
+            formatLabel   .setBounds ({});
+            outputLabel   .setBounds ({});
+            modelSelector .setBounds ({});
+            formatSelector.setBounds ({});
+            outputPath    .setBounds ({});
+        }
     }
     else
     {
-        // No session yet — drop zone fills the whole body. Right column
-        // doesn't exist on screen until the first split completes.
-        left  = r;
-        right = {};
-    }
+        // ============================================================
+        // EMPTY LAYOUT — "drop-zone hero" (original design).
+        // ============================================================
 
-    // ---- Left column: drop zone (top/middle) + queue strip (bottom) ----
-    {
-        // Queue state -> panel height.
+        // ---- Settings strip: now a FULL-WIDTH band at the top of the
+        // body. Was previously inside the left column, which forced the
+        // column to be ~470 px wide just to fit "model · format · output
+        // folder" on a single row. Lifting it out lets the body split
+        // below get aggressive (260 px sidebar / ~75% hero) without
+        // cramping the dropdowns.
+        {
+            const bool stack  = getWidth() < kStackBelowPx;
+            const int  stripH = stack ? kSettingsStripH2Row : kSettingsStripH;
+
+            auto strip = r.removeFromTop (stripH);
+            r.removeFromTop (ui::Theme::kGap);
+
+            constexpr int kLabelH = 14;
+            constexpr int kCtrlH  = 38;
+            constexpr int kGapY   = 4;
+
+            if (! stack)
+            {
+                const int totalW = strip.getWidth();
+                const int gap    = ui::Theme::kPad;
+                const int modelW  = juce::jmax (160, totalW * 22 / 100);
+                const int formatW = juce::jmax (160, totalW * 22 / 100);
+                const int outW    = totalW - modelW - formatW - gap * 2;
+
+                auto modelArea  = strip.removeFromLeft (modelW);
+                strip.removeFromLeft (gap);
+                auto formatArea = strip.removeFromLeft (formatW);
+                strip.removeFromLeft (gap);
+                auto outArea    = strip.withWidth (outW);
+
+                const auto place = [&] (juce::Rectangle<int> area,
+                                        juce::Label& lbl, juce::Component& ctrl)
+                {
+                    lbl.setBounds (area.removeFromTop (kLabelH));
+                    area.removeFromTop (kGapY);
+                    ctrl.setBounds (area.removeFromTop (kCtrlH));
+                };
+
+                place (modelArea,  modelLabel,  modelSelector);
+                place (formatArea, formatLabel, formatSelector);
+                place (outArea,    outputLabel, outputPath);
+            }
+            else
+            {
+                auto row1 = strip.removeFromTop (kSettingsStripH);
+                strip.removeFromTop (ui::Theme::kPadSm);
+                auto row2 = strip;
+
+                const int half = (row1.getWidth() - ui::Theme::kPad) / 2;
+                auto modelArea  = row1.removeFromLeft (half);
+                row1.removeFromLeft (ui::Theme::kPad);
+                auto formatArea = row1;
+
+                modelLabel .setBounds (modelArea.removeFromTop (kLabelH));
+                modelArea.removeFromTop (kGapY);
+                modelSelector.setBounds (modelArea.removeFromTop (kCtrlH));
+
+                formatLabel.setBounds (formatArea.removeFromTop (kLabelH));
+                formatArea.removeFromTop (kGapY);
+                formatSelector.setBounds (formatArea.removeFromTop (kCtrlH));
+
+                outputLabel.setBounds (row2.removeFromTop (kLabelH));
+                row2.removeFromTop (kGapY);
+                outputPath.setBounds (row2.removeFromTop (kCtrlH));
+            }
+        }
+
+        // Empty-state JobList rules: show everything (incl. Done rows)
+        // since there's no recents bar pickup happening yet.
+        jobList.setShowDoneJobs (true);
+
+        // Drop zone fills the whole body. Queue strip is bottom-anchored
+        // when there are any jobs in the queue.
+        auto left = r;
+
         const int totalJobs  = jobList.totalJobCount();
-        const int activeJobs = jobList.activeJobCount();
         const bool compact   = (totalJobs == 1);
         const bool hidden    = (totalJobs == 0);
 
@@ -516,44 +864,16 @@ void StemmerizerEditor::resized()
             jobList.setBounds ({});
         }
 
-        // Drop zone bounds:
-        //   * Session loaded  -> compact "drop another?" affordance at
-        //     the top of the sidebar (max 220 px).
-        //   * Empty state     -> centred "hero card" capped at 760×420 so
-        //     the bordered drop area doesn't stretch to fill 1100×600 of
-        //     surface (which read as overwhelming, per audit feedback).
-        if (sessionLoaded)
-        {
-            const int dropH = juce::jmin (220, left.getHeight());
-            auto drop = left.removeFromTop (dropH);
-            dropZone.setBounds (drop);
-        }
-        else
-        {
-            const int dropW = juce::jmin (kEmptyDropMaxW, left.getWidth());
-            const int dropH = juce::jmin (kEmptyDropMaxH, left.getHeight());
-            const int dropX = left.getX() + (left.getWidth()  - dropW) / 2;
-            const int dropY = left.getY() + (left.getHeight() - dropH) / 2;
-            dropZone.setBounds (dropX, dropY, dropW, dropH);
-        }
+        // Centred hero card capped at 760×420 so the bordered drop area
+        // doesn't stretch to fill 1100×600 of surface.
+        const int dropW = juce::jmin (kEmptyDropMaxW, left.getWidth());
+        const int dropH = juce::jmin (kEmptyDropMaxH, left.getHeight());
+        const int dropX = left.getX() + (left.getWidth()  - dropW) / 2;
+        const int dropY = left.getY() + (left.getHeight() - dropH) / 2;
+        dropZone.setBounds (dropX, dropY, dropW, dropH);
 
-        juce::ignoreUnused (activeJobs);   // reserved for future badge UI
-    }
-
-    // ---- Right column (hero): transport, loop, stems mixer ----
-    if (sessionLoaded && right.getWidth() > 0)
-    {
-        transport.setBounds (right.removeFromTop (56));
-        right.removeFromTop (ui::Theme::kPadSm);
-        loopRegion.setBounds (right.removeFromTop (56));
-        right.removeFromTop (ui::Theme::kGap);
-        // Stems mixer fills everything else and gets the lion's share of
-        // the body real estate — that's the user's primary work surface
-        // once a split is loaded.
-        mixer.setBounds (right);
-    }
-    else
-    {
+        // Loaded-only widgets collapse to zero bounds (visibility is
+        // already false from applyStateVisibility).
         transport .setBounds ({});
         loopRegion.setBounds ({});
         mixer     .setBounds ({});

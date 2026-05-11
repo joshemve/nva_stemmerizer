@@ -78,9 +78,9 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
     modelLabel.setColour (juce::Label::textColourId, col (ui::Theme::kTextSecondary));
     addAndMakeVisible (modelLabel);
 
-    modelSelector.addItem ("4-stem \xc2\xb7 fast",                  1);
-    modelSelector.addItem ("4-stem \xc2\xb7 high quality",          2);
-    modelSelector.addItem ("6-stem \xc2\xb7 +guitar / piano",       3);
+    modelSelector.addItem (juce::String::fromUTF8 ("4-stem \xc2\xb7 fast"),            1);
+    modelSelector.addItem (juce::String::fromUTF8 ("4-stem \xc2\xb7 high quality"),    2);
+    modelSelector.addItem (juce::String::fromUTF8 ("6-stem \xc2\xb7 +guitar / piano"), 3);
     {
         const auto curr = processor.state().getProperty ("model").toString();
         modelSelector.setSelectedId (curr == "htdemucs_ft" ? 2 : curr == "htdemucs_6s" ? 3 : 1,
@@ -100,11 +100,11 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
     formatLabel.setColour (juce::Label::textColourId, col (ui::Theme::kTextSecondary));
     addAndMakeVisible (formatLabel);
 
-    formatSelector.addItem ("WAV \xc2\xb7 24-bit",         1);
-    formatSelector.addItem ("WAV \xc2\xb7 16-bit",         2);
-    formatSelector.addItem ("WAV \xc2\xb7 32-bit float",   3);
-    formatSelector.addItem ("FLAC",                        4);
-    formatSelector.addItem ("MP3 \xc2\xb7 add-on",         5);
+    formatSelector.addItem (juce::String::fromUTF8 ("WAV \xc2\xb7 24-bit"),       1);
+    formatSelector.addItem (juce::String::fromUTF8 ("WAV \xc2\xb7 16-bit"),       2);
+    formatSelector.addItem (juce::String::fromUTF8 ("WAV \xc2\xb7 32-bit float"), 3);
+    formatSelector.addItem ("FLAC",                                               4);
+    formatSelector.addItem (juce::String::fromUTF8 ("MP3 \xc2\xb7 add-on"),       5);
     formatSelector.setSelectedId (1, juce::dontSendNotification);
     formatSelector.onChange = [this]
     {

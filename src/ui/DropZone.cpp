@@ -126,7 +126,8 @@ void DropZone::paint (juce::Graphics& g)
     // Caption — formats and click-to-browse hint combined onto one line.
     g.setColour (Theme::col (Theme::kTextSecondary));
     g.setFont (Theme::caption());
-    g.drawText ("WAV \xc2\xb7 FLAC \xc2\xb7 MP3 \xc2\xb7 AIFF \xc2\xb7 OGG  \xe2\x80\x94  or click to browse",
+    g.drawText (juce::String::fromUTF8 (
+                    "WAV \xc2\xb7 FLAC \xc2\xb7 MP3 \xc2\xb7 AIFF \xc2\xb7 OGG  \xe2\x80\x94  or click to browse"),
                 bounds.withTrimmedTop (bounds.getHeight() * 0.55f + 46).withHeight (22),
                 juce::Justification::centred);
 }

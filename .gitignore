@@ -1,0 +1,65 @@
+# Build
+build/
+out/
+cmake-build-*/
+*.vs/
+.vscode/
+.idea/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# JUCE
+JuceLibraryCode/
+*.jucer.bak
+
+# Third-party (fetched by CMake / submodule per README)
+third_party/
+
+# Compiled
+*.obj
+*.o
+*.lib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.dylib
+*.so
+*.vst3
+*.component
+
+# Weights (large; downloaded by script)
+resources/weights/*.gguf
+resources/weights/*.ggml
+resources/weights/*.bin
+!resources/weights/README.md
+
+# Python (weight-prep script venv)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Installer output
+installer/output/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets
+*.pfx
+*.cer
+*.key
+.env
+.env.local
+
+# Personal scratch
+scratch/
+TODO.local.md

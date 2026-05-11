@@ -1,0 +1,1167 @@
+C:\Users\Joshua\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\cuda\__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+Downloading: "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th" to C:\Users\Joshua/.cache\torch\hub\checkpoints\5c90dfd2-34c22ccb.th
+  0%|          | 0.00/52.4M [00:00<?, ?B/s]  1%|1         | 640k/52.4M [00:00<00:08, 6.42MB/s]  8%|8         | 4.38M/52.4M [00:00<00:01, 25.4MB/s] 24%|##3       | 12.4M/52.4M [00:00<00:00, 51.5MB/s] 37%|###7      | 19.6M/52.4M [00:00<00:00, 61.1MB/s] 52%|#####1    | 27.1M/52.4M [00:00<00:00, 67.4MB/s] 71%|#######   | 37.1M/52.4M [00:00<00:00, 79.7MB/s] 87%|########6 | 45.5M/52.4M [00:00<00:00, 82.0MB/s]100%|##########| 52.4M/52.4M [00:00<00:00, 70.9MB/s]
+BagOfModels(
+  (models): ModuleList(
+    (0): HTDemucs(
+      (encoder): ModuleList(
+        (0): HEncLayer(
+          (conv): Conv2d(4, 48, kernel_size=(8, 1), stride=(4, 1), padding=(2, 0))
+          (norm1): Identity()
+          (rewrite): Conv2d(48, 96, kernel_size=(1, 1), stride=(1, 1))
+          (norm2): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(48, 6, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 6, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(6, 96, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 96, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(48, 6, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 6, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(6, 96, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 96, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (1): HEncLayer(
+          (conv): Conv2d(48, 96, kernel_size=(8, 1), stride=(4, 1), padding=(2, 0))
+          (norm1): Identity()
+          (rewrite): Conv2d(96, 192, kernel_size=(1, 1), stride=(1, 1))
+          (norm2): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(96, 12, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 12, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(12, 192, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 192, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(96, 12, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 12, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(12, 192, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 192, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (2): HEncLayer(
+          (conv): Conv2d(96, 192, kernel_size=(8, 1), stride=(4, 1), padding=(2, 0))
+          (norm1): Identity()
+          (rewrite): Conv2d(192, 384, kernel_size=(1, 1), stride=(1, 1))
+          (norm2): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(192, 24, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 24, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(24, 384, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 384, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(192, 24, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 24, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(24, 384, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 384, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (3): HEncLayer(
+          (conv): Conv2d(192, 384, kernel_size=(8, 1), stride=(4, 1), padding=(2, 0))
+          (norm1): Identity()
+          (rewrite): Conv2d(384, 768, kernel_size=(1, 1), stride=(1, 1))
+          (norm2): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(384, 48, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 48, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(48, 768, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 768, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(384, 48, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 48, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(48, 768, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 768, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+      )
+      (decoder): ModuleList(
+        (0): HDecLayer(
+          (conv_tr): ConvTranspose2d(384, 192, kernel_size=(8, 1), stride=(4, 1))
+          (norm2): Identity()
+          (rewrite): Conv2d(384, 768, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm1): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(384, 48, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 48, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(48, 768, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 768, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(384, 48, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 48, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(48, 768, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 768, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (1): HDecLayer(
+          (conv_tr): ConvTranspose2d(192, 96, kernel_size=(8, 1), stride=(4, 1))
+          (norm2): Identity()
+          (rewrite): Conv2d(192, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm1): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(192, 24, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 24, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(24, 384, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 384, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(192, 24, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 24, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(24, 384, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 384, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (2): HDecLayer(
+          (conv_tr): ConvTranspose2d(96, 48, kernel_size=(8, 1), stride=(4, 1))
+          (norm2): Identity()
+          (rewrite): Conv2d(96, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm1): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(96, 12, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 12, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(12, 192, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 192, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(96, 12, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 12, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(12, 192, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 192, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (3): HDecLayer(
+          (conv_tr): ConvTranspose2d(48, 24, kernel_size=(8, 1), stride=(4, 1))
+          (norm2): Identity()
+          (rewrite): Conv2d(48, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm1): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(48, 6, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 6, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(6, 96, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 96, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(48, 6, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 6, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(6, 96, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 96, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+      )
+      (tencoder): ModuleList(
+        (0): HEncLayer(
+          (conv): Conv1d(2, 48, kernel_size=(8,), stride=(4,), padding=(2,))
+          (norm1): Identity()
+          (rewrite): Conv1d(48, 96, kernel_size=(1,), stride=(1,))
+          (norm2): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(48, 6, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 6, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(6, 96, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 96, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(48, 6, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 6, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(6, 96, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 96, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (1): HEncLayer(
+          (conv): Conv1d(48, 96, kernel_size=(8,), stride=(4,), padding=(2,))
+          (norm1): Identity()
+          (rewrite): Conv1d(96, 192, kernel_size=(1,), stride=(1,))
+          (norm2): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(96, 12, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 12, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(12, 192, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 192, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(96, 12, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 12, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(12, 192, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 192, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (2): HEncLayer(
+          (conv): Conv1d(96, 192, kernel_size=(8,), stride=(4,), padding=(2,))
+          (norm1): Identity()
+          (rewrite): Conv1d(192, 384, kernel_size=(1,), stride=(1,))
+          (norm2): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(192, 24, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 24, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(24, 384, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 384, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(192, 24, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 24, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(24, 384, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 384, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (3): HEncLayer(
+          (conv): Conv1d(192, 384, kernel_size=(8,), stride=(4,), padding=(2,))
+          (norm1): Identity()
+          (rewrite): Conv1d(384, 768, kernel_size=(1,), stride=(1,))
+          (norm2): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(384, 48, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 48, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(48, 768, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 768, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(384, 48, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 48, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(48, 768, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 768, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+      )
+      (tdecoder): ModuleList(
+        (0): HDecLayer(
+          (conv_tr): ConvTranspose1d(384, 192, kernel_size=(8,), stride=(4,))
+          (norm2): Identity()
+          (rewrite): Conv1d(384, 768, kernel_size=(3,), stride=(1,), padding=(1,))
+          (norm1): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(384, 48, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 48, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(48, 768, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 768, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(384, 48, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 48, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(48, 768, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 768, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (1): HDecLayer(
+          (conv_tr): ConvTranspose1d(192, 96, kernel_size=(8,), stride=(4,))
+          (norm2): Identity()
+          (rewrite): Conv1d(192, 384, kernel_size=(3,), stride=(1,), padding=(1,))
+          (norm1): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(192, 24, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 24, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(24, 384, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 384, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(192, 24, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 24, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(24, 384, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 384, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (2): HDecLayer(
+          (conv_tr): ConvTranspose1d(96, 48, kernel_size=(8,), stride=(4,))
+          (norm2): Identity()
+          (rewrite): Conv1d(96, 192, kernel_size=(3,), stride=(1,), padding=(1,))
+          (norm1): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(96, 12, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 12, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(12, 192, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 192, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(96, 12, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 12, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(12, 192, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 192, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+        (3): HDecLayer(
+          (conv_tr): ConvTranspose1d(48, 12, kernel_size=(8,), stride=(4,))
+          (norm2): Identity()
+          (rewrite): Conv1d(48, 96, kernel_size=(3,), stride=(1,), padding=(1,))
+          (norm1): Identity()
+          (dconv): DConv(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): Conv1d(48, 6, kernel_size=(3,), stride=(1,), padding=(1,))
+                (1): GroupNorm(1, 6, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(6, 96, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 96, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+              (1): Sequential(
+                (0): Conv1d(48, 6, kernel_size=(3,), stride=(1,), padding=(2,), dilation=(2,))
+                (1): GroupNorm(1, 6, eps=1e-05, affine=True)
+                (2): GELU(approximate='none')
+                (3): Conv1d(6, 96, kernel_size=(1,), stride=(1,))
+                (4): GroupNorm(1, 96, eps=1e-05, affine=True)
+                (5): GLU(dim=1)
+                (6): LayerScale()
+              )
+            )
+          )
+        )
+      )
+      (freq_emb): ScaledEmbedding(
+        (embedding): Embedding(512, 48)
+      )
+      (crosstransformer): CrossTransformerEncoder(
+        (norm_in): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+        (norm_in_t): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+        (layers): ModuleList(
+          (0): MyTransformerEncoderLayer(
+            (self_attn): MultiheadAttention(
+              (out_proj): NonDynamicallyQuantizableLinear(in_features=384, out_features=384, bias=True)
+            )
+            (linear1): Linear(in_features=384, out_features=1536, bias=True)
+            (dropout): Dropout(p=0.02, inplace=False)
+            (linear2): Linear(in_features=1536, out_features=384, bias=True)
+            (norm1): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm2): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (dropout1): Dropout(p=0.02, inplace=False)
+            (dropout2): Dropout(p=0.02, inplace=False)
+            (norm_out): MyGroupNorm(1, 384, eps=1e-05, affine=True)
+            (gamma_1): LayerScale()
+            (gamma_2): LayerScale()
+          )
+          (1): CrossTransformerEncoderLayer(
+            (cross_attn): MultiheadAttention(
+              (out_proj): NonDynamicallyQuantizableLinear(in_features=384, out_features=384, bias=True)
+            )
+            (linear1): Linear(in_features=384, out_features=1536, bias=True)
+            (dropout): Dropout(p=0.02, inplace=False)
+            (linear2): Linear(in_features=1536, out_features=384, bias=True)
+            (norm1): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm2): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm3): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm_out): MyGroupNorm(1, 384, eps=1e-05, affine=True)
+            (gamma_1): LayerScale()
+            (gamma_2): LayerScale()
+            (dropout1): Dropout(p=0.02, inplace=False)
+            (dropout2): Dropout(p=0.02, inplace=False)
+          )
+          (2): MyTransformerEncoderLayer(
+            (self_attn): MultiheadAttention(
+              (out_proj): NonDynamicallyQuantizableLinear(in_features=384, out_features=384, bias=True)
+            )
+            (linear1): Linear(in_features=384, out_features=1536, bias=True)
+            (dropout): Dropout(p=0.02, inplace=False)
+            (linear2): Linear(in_features=1536, out_features=384, bias=True)
+            (norm1): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm2): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (dropout1): Dropout(p=0.02, inplace=False)
+            (dropout2): Dropout(p=0.02, inplace=False)
+            (norm_out): MyGroupNorm(1, 384, eps=1e-05, affine=True)
+            (gamma_1): LayerScale()
+            (gamma_2): LayerScale()
+          )
+          (3): CrossTransformerEncoderLayer(
+            (cross_attn): MultiheadAttention(
+              (out_proj): NonDynamicallyQuantizableLinear(in_features=384, out_features=384, bias=True)
+            )
+            (linear1): Linear(in_features=384, out_features=1536, bias=True)
+            (dropout): Dropout(p=0.02, inplace=False)
+            (linear2): Linear(in_features=1536, out_features=384, bias=True)
+            (norm1): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm2): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm3): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm_out): MyGroupNorm(1, 384, eps=1e-05, affine=True)
+            (gamma_1): LayerScale()
+            (gamma_2): LayerScale()
+            (dropout1): Dropout(p=0.02, inplace=False)
+            (dropout2): Dropout(p=0.02, inplace=False)
+          )
+          (4): MyTransformerEncoderLayer(
+            (self_attn): MultiheadAttention(
+              (out_proj): NonDynamicallyQuantizableLinear(in_features=384, out_features=384, bias=True)
+            )
+            (linear1): Linear(in_features=384, out_features=1536, bias=True)
+            (dropout): Dropout(p=0.02, inplace=False)
+            (linear2): Linear(in_features=1536, out_features=384, bias=True)
+            (norm1): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm2): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (dropout1): Dropout(p=0.02, inplace=False)
+            (dropout2): Dropout(p=0.02, inplace=False)
+            (norm_out): MyGroupNorm(1, 384, eps=1e-05, affine=True)
+            (gamma_1): LayerScale()
+            (gamma_2): LayerScale()
+          )
+        )
+        (layers_t): ModuleList(
+          (0): MyTransformerEncoderLayer(
+            (self_attn): MultiheadAttention(
+              (out_proj): NonDynamicallyQuantizableLinear(in_features=384, out_features=384, bias=True)
+            )
+            (linear1): Linear(in_features=384, out_features=1536, bias=True)
+            (dropout): Dropout(p=0.02, inplace=False)
+            (linear2): Linear(in_features=1536, out_features=384, bias=True)
+            (norm1): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm2): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (dropout1): Dropout(p=0.02, inplace=False)
+            (dropout2): Dropout(p=0.02, inplace=False)
+            (norm_out): MyGroupNorm(1, 384, eps=1e-05, affine=True)
+            (gamma_1): LayerScale()
+            (gamma_2): LayerScale()
+          )
+          (1): CrossTransformerEncoderLayer(
+            (cross_attn): MultiheadAttention(
+              (out_proj): NonDynamicallyQuantizableLinear(in_features=384, out_features=384, bias=True)
+            )
+            (linear1): Linear(in_features=384, out_features=1536, bias=True)
+            (dropout): Dropout(p=0.02, inplace=False)
+            (linear2): Linear(in_features=1536, out_features=384, bias=True)
+            (norm1): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm2): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm3): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm_out): MyGroupNorm(1, 384, eps=1e-05, affine=True)
+            (gamma_1): LayerScale()
+            (gamma_2): LayerScale()
+            (dropout1): Dropout(p=0.02, inplace=False)
+            (dropout2): Dropout(p=0.02, inplace=False)
+          )
+          (2): MyTransformerEncoderLayer(
+            (self_attn): MultiheadAttention(
+              (out_proj): NonDynamicallyQuantizableLinear(in_features=384, out_features=384, bias=True)
+            )
+            (linear1): Linear(in_features=384, out_features=1536, bias=True)
+            (dropout): Dropout(p=0.02, inplace=False)
+            (linear2): Linear(in_features=1536, out_features=384, bias=True)
+            (norm1): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm2): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (dropout1): Dropout(p=0.02, inplace=False)
+            (dropout2): Dropout(p=0.02, inplace=False)
+            (norm_out): MyGroupNorm(1, 384, eps=1e-05, affine=True)
+            (gamma_1): LayerScale()
+            (gamma_2): LayerScale()
+          )
+          (3): CrossTransformerEncoderLayer(
+            (cross_attn): MultiheadAttention(
+              (out_proj): NonDynamicallyQuantizableLinear(in_features=384, out_features=384, bias=True)
+            )
+            (linear1): Linear(in_features=384, out_features=1536, bias=True)
+            (dropout): Dropout(p=0.02, inplace=False)
+            (linear2): Linear(in_features=1536, out_features=384, bias=True)
+            (norm1): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm2): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm3): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm_out): MyGroupNorm(1, 384, eps=1e-05, affine=True)
+            (gamma_1): LayerScale()
+            (gamma_2): LayerScale()
+            (dropout1): Dropout(p=0.02, inplace=False)
+            (dropout2): Dropout(p=0.02, inplace=False)
+          )
+          (4): MyTransformerEncoderLayer(
+            (self_attn): MultiheadAttention(
+              (out_proj): NonDynamicallyQuantizableLinear(in_features=384, out_features=384, bias=True)
+            )
+            (linear1): Linear(in_features=384, out_features=1536, bias=True)
+            (dropout): Dropout(p=0.02, inplace=False)
+            (linear2): Linear(in_features=1536, out_features=384, bias=True)
+            (norm1): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (norm2): LayerNorm((384,), eps=1e-05, elementwise_affine=True)
+            (dropout1): Dropout(p=0.02, inplace=False)
+            (dropout2): Dropout(p=0.02, inplace=False)
+            (norm_out): MyGroupNorm(1, 384, eps=1e-05, affine=True)
+            (gamma_1): LayerScale()
+            (gamma_2): LayerScale()
+          )
+        )
+      )
+    )
+  )
+)
+dict_keys(['encoder.0.conv.weight', 'encoder.0.conv.bias', 'encoder.0.rewrite.weight', 'encoder.0.rewrite.bias', 'encoder.0.dconv.layers.0.0.weight', 'encoder.0.dconv.layers.0.0.bias', 'encoder.0.dconv.layers.0.1.weight', 'encoder.0.dconv.layers.0.1.bias', 'encoder.0.dconv.layers.0.3.weight', 'encoder.0.dconv.layers.0.3.bias', 'encoder.0.dconv.layers.0.4.weight', 'encoder.0.dconv.layers.0.4.bias', 'encoder.0.dconv.layers.0.6.scale', 'encoder.0.dconv.layers.1.0.weight', 'encoder.0.dconv.layers.1.0.bias', 'encoder.0.dconv.layers.1.1.weight', 'encoder.0.dconv.layers.1.1.bias', 'encoder.0.dconv.layers.1.3.weight', 'encoder.0.dconv.layers.1.3.bias', 'encoder.0.dconv.layers.1.4.weight', 'encoder.0.dconv.layers.1.4.bias', 'encoder.0.dconv.layers.1.6.scale', 'encoder.1.conv.weight', 'encoder.1.conv.bias', 'encoder.1.rewrite.weight', 'encoder.1.rewrite.bias', 'encoder.1.dconv.layers.0.0.weight', 'encoder.1.dconv.layers.0.0.bias', 'encoder.1.dconv.layers.0.1.weight', 'encoder.1.dconv.layers.0.1.bias', 'encoder.1.dconv.layers.0.3.weight', 'encoder.1.dconv.layers.0.3.bias', 'encoder.1.dconv.layers.0.4.weight', 'encoder.1.dconv.layers.0.4.bias', 'encoder.1.dconv.layers.0.6.scale', 'encoder.1.dconv.layers.1.0.weight', 'encoder.1.dconv.layers.1.0.bias', 'encoder.1.dconv.layers.1.1.weight', 'encoder.1.dconv.layers.1.1.bias', 'encoder.1.dconv.layers.1.3.weight', 'encoder.1.dconv.layers.1.3.bias', 'encoder.1.dconv.layers.1.4.weight', 'encoder.1.dconv.layers.1.4.bias', 'encoder.1.dconv.layers.1.6.scale', 'encoder.2.conv.weight', 'encoder.2.conv.bias', 'encoder.2.rewrite.weight', 'encoder.2.rewrite.bias', 'encoder.2.dconv.layers.0.0.weight', 'encoder.2.dconv.layers.0.0.bias', 'encoder.2.dconv.layers.0.1.weight', 'encoder.2.dconv.layers.0.1.bias', 'encoder.2.dconv.layers.0.3.weight', 'encoder.2.dconv.layers.0.3.bias', 'encoder.2.dconv.layers.0.4.weight', 'encoder.2.dconv.layers.0.4.bias', 'encoder.2.dconv.layers.0.6.scale', 'encoder.2.dconv.layers.1.0.weight', 'encoder.2.dconv.layers.1.0.bias', 'encoder.2.dconv.layers.1.1.weight', 'encoder.2.dconv.layers.1.1.bias', 'encoder.2.dconv.layers.1.3.weight', 'encoder.2.dconv.layers.1.3.bias', 'encoder.2.dconv.layers.1.4.weight', 'encoder.2.dconv.layers.1.4.bias', 'encoder.2.dconv.layers.1.6.scale', 'encoder.3.conv.weight', 'encoder.3.conv.bias', 'encoder.3.rewrite.weight', 'encoder.3.rewrite.bias', 'encoder.3.dconv.layers.0.0.weight', 'encoder.3.dconv.layers.0.0.bias', 'encoder.3.dconv.layers.0.1.weight', 'encoder.3.dconv.layers.0.1.bias', 'encoder.3.dconv.layers.0.3.weight', 'encoder.3.dconv.layers.0.3.bias', 'encoder.3.dconv.layers.0.4.weight', 'encoder.3.dconv.layers.0.4.bias', 'encoder.3.dconv.layers.0.6.scale', 'encoder.3.dconv.layers.1.0.weight', 'encoder.3.dconv.layers.1.0.bias', 'encoder.3.dconv.layers.1.1.weight', 'encoder.3.dconv.layers.1.1.bias', 'encoder.3.dconv.layers.1.3.weight', 'encoder.3.dconv.layers.1.3.bias', 'encoder.3.dconv.layers.1.4.weight', 'encoder.3.dconv.layers.1.4.bias', 'encoder.3.dconv.layers.1.6.scale', 'decoder.0.conv_tr.weight', 'decoder.0.conv_tr.bias', 'decoder.0.rewrite.weight', 'decoder.0.rewrite.bias', 'decoder.0.dconv.layers.0.0.weight', 'decoder.0.dconv.layers.0.0.bias', 'decoder.0.dconv.layers.0.1.weight', 'decoder.0.dconv.layers.0.1.bias', 'decoder.0.dconv.layers.0.3.weight', 'decoder.0.dconv.layers.0.3.bias', 'decoder.0.dconv.layers.0.4.weight', 'decoder.0.dconv.layers.0.4.bias', 'decoder.0.dconv.layers.0.6.scale', 'decoder.0.dconv.layers.1.0.weight', 'decoder.0.dconv.layers.1.0.bias', 'decoder.0.dconv.layers.1.1.weight', 'decoder.0.dconv.layers.1.1.bias', 'decoder.0.dconv.layers.1.3.weight', 'decoder.0.dconv.layers.1.3.bias', 'decoder.0.dconv.layers.1.4.weight', 'decoder.0.dconv.layers.1.4.bias', 'decoder.0.dconv.layers.1.6.scale', 'decoder.1.conv_tr.weight', 'decoder.1.conv_tr.bias', 'decoder.1.rewrite.weight', 'decoder.1.rewrite.bias', 'decoder.1.dconv.layers.0.0.weight', 'decoder.1.dconv.layers.0.0.bias', 'decoder.1.dconv.layers.0.1.weight', 'decoder.1.dconv.layers.0.1.bias', 'decoder.1.dconv.layers.0.3.weight', 'decoder.1.dconv.layers.0.3.bias', 'decoder.1.dconv.layers.0.4.weight', 'decoder.1.dconv.layers.0.4.bias', 'decoder.1.dconv.layers.0.6.scale', 'decoder.1.dconv.layers.1.0.weight', 'decoder.1.dconv.layers.1.0.bias', 'decoder.1.dconv.layers.1.1.weight', 'decoder.1.dconv.layers.1.1.bias', 'decoder.1.dconv.layers.1.3.weight', 'decoder.1.dconv.layers.1.3.bias', 'decoder.1.dconv.layers.1.4.weight', 'decoder.1.dconv.layers.1.4.bias', 'decoder.1.dconv.layers.1.6.scale', 'decoder.2.conv_tr.weight', 'decoder.2.conv_tr.bias', 'decoder.2.rewrite.weight', 'decoder.2.rewrite.bias', 'decoder.2.dconv.layers.0.0.weight', 'decoder.2.dconv.layers.0.0.bias', 'decoder.2.dconv.layers.0.1.weight', 'decoder.2.dconv.layers.0.1.bias', 'decoder.2.dconv.layers.0.3.weight', 'decoder.2.dconv.layers.0.3.bias', 'decoder.2.dconv.layers.0.4.weight', 'decoder.2.dconv.layers.0.4.bias', 'decoder.2.dconv.layers.0.6.scale', 'decoder.2.dconv.layers.1.0.weight', 'decoder.2.dconv.layers.1.0.bias', 'decoder.2.dconv.layers.1.1.weight', 'decoder.2.dconv.layers.1.1.bias', 'decoder.2.dconv.layers.1.3.weight', 'decoder.2.dconv.layers.1.3.bias', 'decoder.2.dconv.layers.1.4.weight', 'decoder.2.dconv.layers.1.4.bias', 'decoder.2.dconv.layers.1.6.scale', 'decoder.3.conv_tr.weight', 'decoder.3.conv_tr.bias', 'decoder.3.rewrite.weight', 'decoder.3.rewrite.bias', 'decoder.3.dconv.layers.0.0.weight', 'decoder.3.dconv.layers.0.0.bias', 'decoder.3.dconv.layers.0.1.weight', 'decoder.3.dconv.layers.0.1.bias', 'decoder.3.dconv.layers.0.3.weight', 'decoder.3.dconv.layers.0.3.bias', 'decoder.3.dconv.layers.0.4.weight', 'decoder.3.dconv.layers.0.4.bias', 'decoder.3.dconv.layers.0.6.scale', 'decoder.3.dconv.layers.1.0.weight', 'decoder.3.dconv.layers.1.0.bias', 'decoder.3.dconv.layers.1.1.weight', 'decoder.3.dconv.layers.1.1.bias', 'decoder.3.dconv.layers.1.3.weight', 'decoder.3.dconv.layers.1.3.bias', 'decoder.3.dconv.layers.1.4.weight', 'decoder.3.dconv.layers.1.4.bias', 'decoder.3.dconv.layers.1.6.scale', 'tencoder.0.conv.weight', 'tencoder.0.conv.bias', 'tencoder.0.rewrite.weight', 'tencoder.0.rewrite.bias', 'tencoder.0.dconv.layers.0.0.weight', 'tencoder.0.dconv.layers.0.0.bias', 'tencoder.0.dconv.layers.0.1.weight', 'tencoder.0.dconv.layers.0.1.bias', 'tencoder.0.dconv.layers.0.3.weight', 'tencoder.0.dconv.layers.0.3.bias', 'tencoder.0.dconv.layers.0.4.weight', 'tencoder.0.dconv.layers.0.4.bias', 'tencoder.0.dconv.layers.0.6.scale', 'tencoder.0.dconv.layers.1.0.weight', 'tencoder.0.dconv.layers.1.0.bias', 'tencoder.0.dconv.layers.1.1.weight', 'tencoder.0.dconv.layers.1.1.bias', 'tencoder.0.dconv.layers.1.3.weight', 'tencoder.0.dconv.layers.1.3.bias', 'tencoder.0.dconv.layers.1.4.weight', 'tencoder.0.dconv.layers.1.4.bias', 'tencoder.0.dconv.layers.1.6.scale', 'tencoder.1.conv.weight', 'tencoder.1.conv.bias', 'tencoder.1.rewrite.weight', 'tencoder.1.rewrite.bias', 'tencoder.1.dconv.layers.0.0.weight', 'tencoder.1.dconv.layers.0.0.bias', 'tencoder.1.dconv.layers.0.1.weight', 'tencoder.1.dconv.layers.0.1.bias', 'tencoder.1.dconv.layers.0.3.weight', 'tencoder.1.dconv.layers.0.3.bias', 'tencoder.1.dconv.layers.0.4.weight', 'tencoder.1.dconv.layers.0.4.bias', 'tencoder.1.dconv.layers.0.6.scale', 'tencoder.1.dconv.layers.1.0.weight', 'tencoder.1.dconv.layers.1.0.bias', 'tencoder.1.dconv.layers.1.1.weight', 'tencoder.1.dconv.layers.1.1.bias', 'tencoder.1.dconv.layers.1.3.weight', 'tencoder.1.dconv.layers.1.3.bias', 'tencoder.1.dconv.layers.1.4.weight', 'tencoder.1.dconv.layers.1.4.bias', 'tencoder.1.dconv.layers.1.6.scale', 'tencoder.2.conv.weight', 'tencoder.2.conv.bias', 'tencoder.2.rewrite.weight', 'tencoder.2.rewrite.bias', 'tencoder.2.dconv.layers.0.0.weight', 'tencoder.2.dconv.layers.0.0.bias', 'tencoder.2.dconv.layers.0.1.weight', 'tencoder.2.dconv.layers.0.1.bias', 'tencoder.2.dconv.layers.0.3.weight', 'tencoder.2.dconv.layers.0.3.bias', 'tencoder.2.dconv.layers.0.4.weight', 'tencoder.2.dconv.layers.0.4.bias', 'tencoder.2.dconv.layers.0.6.scale', 'tencoder.2.dconv.layers.1.0.weight', 'tencoder.2.dconv.layers.1.0.bias', 'tencoder.2.dconv.layers.1.1.weight', 'tencoder.2.dconv.layers.1.1.bias', 'tencoder.2.dconv.layers.1.3.weight', 'tencoder.2.dconv.layers.1.3.bias', 'tencoder.2.dconv.layers.1.4.weight', 'tencoder.2.dconv.layers.1.4.bias', 'tencoder.2.dconv.layers.1.6.scale', 'tencoder.3.conv.weight', 'tencoder.3.conv.bias', 'tencoder.3.rewrite.weight', 'tencoder.3.rewrite.bias', 'tencoder.3.dconv.layers.0.0.weight', 'tencoder.3.dconv.layers.0.0.bias', 'tencoder.3.dconv.layers.0.1.weight', 'tencoder.3.dconv.layers.0.1.bias', 'tencoder.3.dconv.layers.0.3.weight', 'tencoder.3.dconv.layers.0.3.bias', 'tencoder.3.dconv.layers.0.4.weight', 'tencoder.3.dconv.layers.0.4.bias', 'tencoder.3.dconv.layers.0.6.scale', 'tencoder.3.dconv.layers.1.0.weight', 'tencoder.3.dconv.layers.1.0.bias', 'tencoder.3.dconv.layers.1.1.weight', 'tencoder.3.dconv.layers.1.1.bias', 'tencoder.3.dconv.layers.1.3.weight', 'tencoder.3.dconv.layers.1.3.bias', 'tencoder.3.dconv.layers.1.4.weight', 'tencoder.3.dconv.layers.1.4.bias', 'tencoder.3.dconv.layers.1.6.scale', 'tdecoder.0.conv_tr.weight', 'tdecoder.0.conv_tr.bias', 'tdecoder.0.rewrite.weight', 'tdecoder.0.rewrite.bias', 'tdecoder.0.dconv.layers.0.0.weight', 'tdecoder.0.dconv.layers.0.0.bias', 'tdecoder.0.dconv.layers.0.1.weight', 'tdecoder.0.dconv.layers.0.1.bias', 'tdecoder.0.dconv.layers.0.3.weight', 'tdecoder.0.dconv.layers.0.3.bias', 'tdecoder.0.dconv.layers.0.4.weight', 'tdecoder.0.dconv.layers.0.4.bias', 'tdecoder.0.dconv.layers.0.6.scale', 'tdecoder.0.dconv.layers.1.0.weight', 'tdecoder.0.dconv.layers.1.0.bias', 'tdecoder.0.dconv.layers.1.1.weight', 'tdecoder.0.dconv.layers.1.1.bias', 'tdecoder.0.dconv.layers.1.3.weight', 'tdecoder.0.dconv.layers.1.3.bias', 'tdecoder.0.dconv.layers.1.4.weight', 'tdecoder.0.dconv.layers.1.4.bias', 'tdecoder.0.dconv.layers.1.6.scale', 'tdecoder.1.conv_tr.weight', 'tdecoder.1.conv_tr.bias', 'tdecoder.1.rewrite.weight', 'tdecoder.1.rewrite.bias', 'tdecoder.1.dconv.layers.0.0.weight', 'tdecoder.1.dconv.layers.0.0.bias', 'tdecoder.1.dconv.layers.0.1.weight', 'tdecoder.1.dconv.layers.0.1.bias', 'tdecoder.1.dconv.layers.0.3.weight', 'tdecoder.1.dconv.layers.0.3.bias', 'tdecoder.1.dconv.layers.0.4.weight', 'tdecoder.1.dconv.layers.0.4.bias', 'tdecoder.1.dconv.layers.0.6.scale', 'tdecoder.1.dconv.layers.1.0.weight', 'tdecoder.1.dconv.layers.1.0.bias', 'tdecoder.1.dconv.layers.1.1.weight', 'tdecoder.1.dconv.layers.1.1.bias', 'tdecoder.1.dconv.layers.1.3.weight', 'tdecoder.1.dconv.layers.1.3.bias', 'tdecoder.1.dconv.layers.1.4.weight', 'tdecoder.1.dconv.layers.1.4.bias', 'tdecoder.1.dconv.layers.1.6.scale', 'tdecoder.2.conv_tr.weight', 'tdecoder.2.conv_tr.bias', 'tdecoder.2.rewrite.weight', 'tdecoder.2.rewrite.bias', 'tdecoder.2.dconv.layers.0.0.weight', 'tdecoder.2.dconv.layers.0.0.bias', 'tdecoder.2.dconv.layers.0.1.weight', 'tdecoder.2.dconv.layers.0.1.bias', 'tdecoder.2.dconv.layers.0.3.weight', 'tdecoder.2.dconv.layers.0.3.bias', 'tdecoder.2.dconv.layers.0.4.weight', 'tdecoder.2.dconv.layers.0.4.bias', 'tdecoder.2.dconv.layers.0.6.scale', 'tdecoder.2.dconv.layers.1.0.weight', 'tdecoder.2.dconv.layers.1.0.bias', 'tdecoder.2.dconv.layers.1.1.weight', 'tdecoder.2.dconv.layers.1.1.bias', 'tdecoder.2.dconv.layers.1.3.weight', 'tdecoder.2.dconv.layers.1.3.bias', 'tdecoder.2.dconv.layers.1.4.weight', 'tdecoder.2.dconv.layers.1.4.bias', 'tdecoder.2.dconv.layers.1.6.scale', 'tdecoder.3.conv_tr.weight', 'tdecoder.3.conv_tr.bias', 'tdecoder.3.rewrite.weight', 'tdecoder.3.rewrite.bias', 'tdecoder.3.dconv.layers.0.0.weight', 'tdecoder.3.dconv.layers.0.0.bias', 'tdecoder.3.dconv.layers.0.1.weight', 'tdecoder.3.dconv.layers.0.1.bias', 'tdecoder.3.dconv.layers.0.3.weight', 'tdecoder.3.dconv.layers.0.3.bias', 'tdecoder.3.dconv.layers.0.4.weight', 'tdecoder.3.dconv.layers.0.4.bias', 'tdecoder.3.dconv.layers.0.6.scale', 'tdecoder.3.dconv.layers.1.0.weight', 'tdecoder.3.dconv.layers.1.0.bias', 'tdecoder.3.dconv.layers.1.1.weight', 'tdecoder.3.dconv.layers.1.1.bias', 'tdecoder.3.dconv.layers.1.3.weight', 'tdecoder.3.dconv.layers.1.3.bias', 'tdecoder.3.dconv.layers.1.4.weight', 'tdecoder.3.dconv.layers.1.4.bias', 'tdecoder.3.dconv.layers.1.6.scale', 'freq_emb.embedding.weight', 'crosstransformer.norm_in.weight', 'crosstransformer.norm_in.bias', 'crosstransformer.norm_in_t.weight', 'crosstransformer.norm_in_t.bias', 'crosstransformer.layers.0.self_attn.in_proj_weight', 'crosstransformer.layers.0.self_attn.in_proj_bias', 'crosstransformer.layers.0.self_attn.out_proj.weight', 'crosstransformer.layers.0.self_attn.out_proj.bias', 'crosstransformer.layers.0.linear1.weight', 'crosstransformer.layers.0.linear1.bias', 'crosstransformer.layers.0.linear2.weight', 'crosstransformer.layers.0.linear2.bias', 'crosstransformer.layers.0.norm1.weight', 'crosstransformer.layers.0.norm1.bias', 'crosstransformer.layers.0.norm2.weight', 'crosstransformer.layers.0.norm2.bias', 'crosstransformer.layers.0.norm_out.weight', 'crosstransformer.layers.0.norm_out.bias', 'crosstransformer.layers.0.gamma_1.scale', 'crosstransformer.layers.0.gamma_2.scale', 'crosstransformer.layers.1.cross_attn.in_proj_weight', 'crosstransformer.layers.1.cross_attn.in_proj_bias', 'crosstransformer.layers.1.cross_attn.out_proj.weight', 'crosstransformer.layers.1.cross_attn.out_proj.bias', 'crosstransformer.layers.1.linear1.weight', 'crosstransformer.layers.1.linear1.bias', 'crosstransformer.layers.1.linear2.weight', 'crosstransformer.layers.1.linear2.bias', 'crosstransformer.layers.1.norm1.weight', 'crosstransformer.layers.1.norm1.bias', 'crosstransformer.layers.1.norm2.weight', 'crosstransformer.layers.1.norm2.bias', 'crosstransformer.layers.1.norm3.weight', 'crosstransformer.layers.1.norm3.bias', 'crosstransformer.layers.1.norm_out.weight', 'crosstransformer.layers.1.norm_out.bias', 'crosstransformer.layers.1.gamma_1.scale', 'crosstransformer.layers.1.gamma_2.scale', 'crosstransformer.layers.2.self_attn.in_proj_weight', 'crosstransformer.layers.2.self_attn.in_proj_bias', 'crosstransformer.layers.2.self_attn.out_proj.weight', 'crosstransformer.layers.2.self_attn.out_proj.bias', 'crosstransformer.layers.2.linear1.weight', 'crosstransformer.layers.2.linear1.bias', 'crosstransformer.layers.2.linear2.weight', 'crosstransformer.layers.2.linear2.bias', 'crosstransformer.layers.2.norm1.weight', 'crosstransformer.layers.2.norm1.bias', 'crosstransformer.layers.2.norm2.weight', 'crosstransformer.layers.2.norm2.bias', 'crosstransformer.layers.2.norm_out.weight', 'crosstransformer.layers.2.norm_out.bias', 'crosstransformer.layers.2.gamma_1.scale', 'crosstransformer.layers.2.gamma_2.scale', 'crosstransformer.layers.3.cross_attn.in_proj_weight', 'crosstransformer.layers.3.cross_attn.in_proj_bias', 'crosstransformer.layers.3.cross_attn.out_proj.weight', 'crosstransformer.layers.3.cross_attn.out_proj.bias', 'crosstransformer.layers.3.linear1.weight', 'crosstransformer.layers.3.linear1.bias', 'crosstransformer.layers.3.linear2.weight', 'crosstransformer.layers.3.linear2.bias', 'crosstransformer.layers.3.norm1.weight', 'crosstransformer.layers.3.norm1.bias', 'crosstransformer.layers.3.norm2.weight', 'crosstransformer.layers.3.norm2.bias', 'crosstransformer.layers.3.norm3.weight', 'crosstransformer.layers.3.norm3.bias', 'crosstransformer.layers.3.norm_out.weight', 'crosstransformer.layers.3.norm_out.bias', 'crosstransformer.layers.3.gamma_1.scale', 'crosstransformer.layers.3.gamma_2.scale', 'crosstransformer.layers.4.self_attn.in_proj_weight', 'crosstransformer.layers.4.self_attn.in_proj_bias', 'crosstransformer.layers.4.self_attn.out_proj.weight', 'crosstransformer.layers.4.self_attn.out_proj.bias', 'crosstransformer.layers.4.linear1.weight', 'crosstransformer.layers.4.linear1.bias', 'crosstransformer.layers.4.linear2.weight', 'crosstransformer.layers.4.linear2.bias', 'crosstransformer.layers.4.norm1.weight', 'crosstransformer.layers.4.norm1.bias', 'crosstransformer.layers.4.norm2.weight', 'crosstransformer.layers.4.norm2.bias', 'crosstransformer.layers.4.norm_out.weight', 'crosstransformer.layers.4.norm_out.bias', 'crosstransformer.layers.4.gamma_1.scale', 'crosstransformer.layers.4.gamma_2.scale', 'crosstransformer.layers_t.0.self_attn.in_proj_weight', 'crosstransformer.layers_t.0.self_attn.in_proj_bias', 'crosstransformer.layers_t.0.self_attn.out_proj.weight', 'crosstransformer.layers_t.0.self_attn.out_proj.bias', 'crosstransformer.layers_t.0.linear1.weight', 'crosstransformer.layers_t.0.linear1.bias', 'crosstransformer.layers_t.0.linear2.weight', 'crosstransformer.layers_t.0.linear2.bias', 'crosstransformer.layers_t.0.norm1.weight', 'crosstransformer.layers_t.0.norm1.bias', 'crosstransformer.layers_t.0.norm2.weight', 'crosstransformer.layers_t.0.norm2.bias', 'crosstransformer.layers_t.0.norm_out.weight', 'crosstransformer.layers_t.0.norm_out.bias', 'crosstransformer.layers_t.0.gamma_1.scale', 'crosstransformer.layers_t.0.gamma_2.scale', 'crosstransformer.layers_t.1.cross_attn.in_proj_weight', 'crosstransformer.layers_t.1.cross_attn.in_proj_bias', 'crosstransformer.layers_t.1.cross_attn.out_proj.weight', 'crosstransformer.layers_t.1.cross_attn.out_proj.bias', 'crosstransformer.layers_t.1.linear1.weight', 'crosstransformer.layers_t.1.linear1.bias', 'crosstransformer.layers_t.1.linear2.weight', 'crosstransformer.layers_t.1.linear2.bias', 'crosstransformer.layers_t.1.norm1.weight', 'crosstransformer.layers_t.1.norm1.bias', 'crosstransformer.layers_t.1.norm2.weight', 'crosstransformer.layers_t.1.norm2.bias', 'crosstransformer.layers_t.1.norm3.weight', 'crosstransformer.layers_t.1.norm3.bias', 'crosstransformer.layers_t.1.norm_out.weight', 'crosstransformer.layers_t.1.norm_out.bias', 'crosstransformer.layers_t.1.gamma_1.scale', 'crosstransformer.layers_t.1.gamma_2.scale', 'crosstransformer.layers_t.2.self_attn.in_proj_weight', 'crosstransformer.layers_t.2.self_attn.in_proj_bias', 'crosstransformer.layers_t.2.self_attn.out_proj.weight', 'crosstransformer.layers_t.2.self_attn.out_proj.bias', 'crosstransformer.layers_t.2.linear1.weight', 'crosstransformer.layers_t.2.linear1.bias', 'crosstransformer.layers_t.2.linear2.weight', 'crosstransformer.layers_t.2.linear2.bias', 'crosstransformer.layers_t.2.norm1.weight', 'crosstransformer.layers_t.2.norm1.bias', 'crosstransformer.layers_t.2.norm2.weight', 'crosstransformer.layers_t.2.norm2.bias', 'crosstransformer.layers_t.2.norm_out.weight', 'crosstransformer.layers_t.2.norm_out.bias', 'crosstransformer.layers_t.2.gamma_1.scale', 'crosstransformer.layers_t.2.gamma_2.scale', 'crosstransformer.layers_t.3.cross_attn.in_proj_weight', 'crosstransformer.layers_t.3.cross_attn.in_proj_bias', 'crosstransformer.layers_t.3.cross_attn.out_proj.weight', 'crosstransformer.layers_t.3.cross_attn.out_proj.bias', 'crosstransformer.layers_t.3.linear1.weight', 'crosstransformer.layers_t.3.linear1.bias', 'crosstransformer.layers_t.3.linear2.weight', 'crosstransformer.layers_t.3.linear2.bias', 'crosstransformer.layers_t.3.norm1.weight', 'crosstransformer.layers_t.3.norm1.bias', 'crosstransformer.layers_t.3.norm2.weight', 'crosstransformer.layers_t.3.norm2.bias', 'crosstransformer.layers_t.3.norm3.weight', 'crosstransformer.layers_t.3.norm3.bias', 'crosstransformer.layers_t.3.norm_out.weight', 'crosstransformer.layers_t.3.norm_out.bias', 'crosstransformer.layers_t.3.gamma_1.scale', 'crosstransformer.layers_t.3.gamma_2.scale', 'crosstransformer.layers_t.4.self_attn.in_proj_weight', 'crosstransformer.layers_t.4.self_attn.in_proj_bias', 'crosstransformer.layers_t.4.self_attn.out_proj.weight', 'crosstransformer.layers_t.4.self_attn.out_proj.bias', 'crosstransformer.layers_t.4.linear1.weight', 'crosstransformer.layers_t.4.linear1.bias', 'crosstransformer.layers_t.4.linear2.weight', 'crosstransformer.layers_t.4.linear2.bias', 'crosstransformer.layers_t.4.norm1.weight', 'crosstransformer.layers_t.4.norm1.bias', 'crosstransformer.layers_t.4.norm2.weight', 'crosstransformer.layers_t.4.norm2.bias', 'crosstransformer.layers_t.4.norm_out.weight', 'crosstransformer.layers_t.4.norm_out.bias', 'crosstransformer.layers_t.4.gamma_1.scale', 'crosstransformer.layers_t.4.gamma_2.scale'])
+Processing variable:  encoder.0.conv.weight  with shape:  (48, 4, 8)  , dtype:  float16
+Processing variable:  encoder.0.conv.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  encoder.0.rewrite.weight  with shape:  (96, 48)  , dtype:  float16
+Processing variable:  encoder.0.rewrite.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.0.0.weight  with shape:  (6, 48, 3)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.0.0.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.0.1.weight  with shape:  (6,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.0.1.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.0.3.weight  with shape:  (96, 6)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.0.3.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.0.4.weight  with shape:  (96,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.0.4.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.0.6.scale  with shape:  (48,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.1.0.weight  with shape:  (6, 48, 3)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.1.0.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.1.1.weight  with shape:  (6,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.1.1.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.1.3.weight  with shape:  (96, 6)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.1.3.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.1.4.weight  with shape:  (96,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.1.4.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  encoder.0.dconv.layers.1.6.scale  with shape:  (48,)  , dtype:  float16
+Processing variable:  encoder.1.conv.weight  with shape:  (96, 48, 8)  , dtype:  float16
+Processing variable:  encoder.1.conv.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  encoder.1.rewrite.weight  with shape:  (192, 96)  , dtype:  float16
+Processing variable:  encoder.1.rewrite.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.0.0.weight  with shape:  (12, 96, 3)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.0.0.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.0.1.weight  with shape:  (12,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.0.1.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.0.3.weight  with shape:  (192, 12)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.0.3.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.0.4.weight  with shape:  (192,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.0.4.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.0.6.scale  with shape:  (96,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.1.0.weight  with shape:  (12, 96, 3)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.1.0.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.1.1.weight  with shape:  (12,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.1.1.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.1.3.weight  with shape:  (192, 12)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.1.3.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.1.4.weight  with shape:  (192,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.1.4.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  encoder.1.dconv.layers.1.6.scale  with shape:  (96,)  , dtype:  float16
+Processing variable:  encoder.2.conv.weight  with shape:  (192, 96, 8)  , dtype:  float16
+Processing variable:  encoder.2.conv.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  encoder.2.rewrite.weight  with shape:  (384, 192)  , dtype:  float16
+Processing variable:  encoder.2.rewrite.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.0.0.weight  with shape:  (24, 192, 3)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.0.0.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.0.1.weight  with shape:  (24,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.0.1.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.0.3.weight  with shape:  (384, 24)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.0.3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.0.4.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.0.4.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.0.6.scale  with shape:  (192,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.1.0.weight  with shape:  (24, 192, 3)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.1.0.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.1.1.weight  with shape:  (24,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.1.1.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.1.3.weight  with shape:  (384, 24)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.1.3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.1.4.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.1.4.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  encoder.2.dconv.layers.1.6.scale  with shape:  (192,)  , dtype:  float16
+Processing variable:  encoder.3.conv.weight  with shape:  (384, 192, 8)  , dtype:  float16
+Processing variable:  encoder.3.conv.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  encoder.3.rewrite.weight  with shape:  (768, 384)  , dtype:  float16
+Processing variable:  encoder.3.rewrite.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.0.0.weight  with shape:  (48, 384, 3)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.0.0.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.0.1.weight  with shape:  (48,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.0.1.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.0.3.weight  with shape:  (768, 48)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.0.3.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.0.4.weight  with shape:  (768,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.0.4.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.0.6.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.1.0.weight  with shape:  (48, 384, 3)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.1.0.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.1.1.weight  with shape:  (48,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.1.1.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.1.3.weight  with shape:  (768, 48)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.1.3.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.1.4.weight  with shape:  (768,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.1.4.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  encoder.3.dconv.layers.1.6.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  decoder.0.conv_tr.weight  with shape:  (384, 192, 8)  , dtype:  float16
+Processing variable:  decoder.0.conv_tr.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  decoder.0.rewrite.weight  with shape:  (768, 384, 3, 3)  , dtype:  float16
+Processing variable:  decoder.0.rewrite.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.0.0.weight  with shape:  (48, 384, 3)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.0.0.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.0.1.weight  with shape:  (48,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.0.1.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.0.3.weight  with shape:  (768, 48)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.0.3.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.0.4.weight  with shape:  (768,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.0.4.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.0.6.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.1.0.weight  with shape:  (48, 384, 3)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.1.0.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.1.1.weight  with shape:  (48,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.1.1.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.1.3.weight  with shape:  (768, 48)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.1.3.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.1.4.weight  with shape:  (768,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.1.4.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  decoder.0.dconv.layers.1.6.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  decoder.1.conv_tr.weight  with shape:  (192, 96, 8)  , dtype:  float16
+Processing variable:  decoder.1.conv_tr.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  decoder.1.rewrite.weight  with shape:  (384, 192, 3, 3)  , dtype:  float16
+Processing variable:  decoder.1.rewrite.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.0.0.weight  with shape:  (24, 192, 3)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.0.0.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.0.1.weight  with shape:  (24,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.0.1.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.0.3.weight  with shape:  (384, 24)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.0.3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.0.4.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.0.4.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.0.6.scale  with shape:  (192,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.1.0.weight  with shape:  (24, 192, 3)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.1.0.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.1.1.weight  with shape:  (24,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.1.1.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.1.3.weight  with shape:  (384, 24)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.1.3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.1.4.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.1.4.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  decoder.1.dconv.layers.1.6.scale  with shape:  (192,)  , dtype:  float16
+Processing variable:  decoder.2.conv_tr.weight  with shape:  (96, 48, 8)  , dtype:  float16
+Processing variable:  decoder.2.conv_tr.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  decoder.2.rewrite.weight  with shape:  (192, 96, 3, 3)  , dtype:  float16
+Processing variable:  decoder.2.rewrite.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.0.0.weight  with shape:  (12, 96, 3)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.0.0.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.0.1.weight  with shape:  (12,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.0.1.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.0.3.weight  with shape:  (192, 12)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.0.3.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.0.4.weight  with shape:  (192,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.0.4.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.0.6.scale  with shape:  (96,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.1.0.weight  with shape:  (12, 96, 3)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.1.0.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.1.1.weight  with shape:  (12,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.1.1.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.1.3.weight  with shape:  (192, 12)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.1.3.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.1.4.weight  with shape:  (192,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.1.4.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  decoder.2.dconv.layers.1.6.scale  with shape:  (96,)  , dtype:  float16
+Processing variable:  decoder.3.conv_tr.weight  with shape:  (48, 24, 8)  , dtype:  float16
+Processing variable:  decoder.3.conv_tr.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  decoder.3.rewrite.weight  with shape:  (96, 48, 3, 3)  , dtype:  float16
+Processing variable:  decoder.3.rewrite.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.0.0.weight  with shape:  (6, 48, 3)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.0.0.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.0.1.weight  with shape:  (6,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.0.1.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.0.3.weight  with shape:  (96, 6)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.0.3.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.0.4.weight  with shape:  (96,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.0.4.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.0.6.scale  with shape:  (48,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.1.0.weight  with shape:  (6, 48, 3)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.1.0.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.1.1.weight  with shape:  (6,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.1.1.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.1.3.weight  with shape:  (96, 6)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.1.3.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.1.4.weight  with shape:  (96,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.1.4.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  decoder.3.dconv.layers.1.6.scale  with shape:  (48,)  , dtype:  float16
+Processing variable:  tencoder.0.conv.weight  with shape:  (48, 2, 8)  , dtype:  float16
+Processing variable:  tencoder.0.conv.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  tencoder.0.rewrite.weight  with shape:  (96, 48)  , dtype:  float16
+Processing variable:  tencoder.0.rewrite.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.0.0.weight  with shape:  (6, 48, 3)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.0.0.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.0.1.weight  with shape:  (6,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.0.1.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.0.3.weight  with shape:  (96, 6)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.0.3.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.0.4.weight  with shape:  (96,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.0.4.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.0.6.scale  with shape:  (48,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.1.0.weight  with shape:  (6, 48, 3)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.1.0.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.1.1.weight  with shape:  (6,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.1.1.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.1.3.weight  with shape:  (96, 6)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.1.3.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.1.4.weight  with shape:  (96,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.1.4.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tencoder.0.dconv.layers.1.6.scale  with shape:  (48,)  , dtype:  float16
+Processing variable:  tencoder.1.conv.weight  with shape:  (96, 48, 8)  , dtype:  float16
+Processing variable:  tencoder.1.conv.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tencoder.1.rewrite.weight  with shape:  (192, 96)  , dtype:  float16
+Processing variable:  tencoder.1.rewrite.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.0.0.weight  with shape:  (12, 96, 3)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.0.0.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.0.1.weight  with shape:  (12,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.0.1.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.0.3.weight  with shape:  (192, 12)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.0.3.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.0.4.weight  with shape:  (192,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.0.4.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.0.6.scale  with shape:  (96,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.1.0.weight  with shape:  (12, 96, 3)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.1.0.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.1.1.weight  with shape:  (12,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.1.1.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.1.3.weight  with shape:  (192, 12)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.1.3.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.1.4.weight  with shape:  (192,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.1.4.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tencoder.1.dconv.layers.1.6.scale  with shape:  (96,)  , dtype:  float16
+Processing variable:  tencoder.2.conv.weight  with shape:  (192, 96, 8)  , dtype:  float16
+Processing variable:  tencoder.2.conv.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tencoder.2.rewrite.weight  with shape:  (384, 192)  , dtype:  float16
+Processing variable:  tencoder.2.rewrite.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.0.0.weight  with shape:  (24, 192, 3)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.0.0.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.0.1.weight  with shape:  (24,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.0.1.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.0.3.weight  with shape:  (384, 24)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.0.3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.0.4.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.0.4.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.0.6.scale  with shape:  (192,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.1.0.weight  with shape:  (24, 192, 3)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.1.0.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.1.1.weight  with shape:  (24,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.1.1.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.1.3.weight  with shape:  (384, 24)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.1.3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.1.4.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.1.4.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tencoder.2.dconv.layers.1.6.scale  with shape:  (192,)  , dtype:  float16
+Processing variable:  tencoder.3.conv.weight  with shape:  (384, 192, 8)  , dtype:  float16
+Processing variable:  tencoder.3.conv.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tencoder.3.rewrite.weight  with shape:  (768, 384)  , dtype:  float16
+Processing variable:  tencoder.3.rewrite.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.0.0.weight  with shape:  (48, 384, 3)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.0.0.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.0.1.weight  with shape:  (48,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.0.1.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.0.3.weight  with shape:  (768, 48)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.0.3.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.0.4.weight  with shape:  (768,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.0.4.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.0.6.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.1.0.weight  with shape:  (48, 384, 3)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.1.0.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.1.1.weight  with shape:  (48,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.1.1.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.1.3.weight  with shape:  (768, 48)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.1.3.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.1.4.weight  with shape:  (768,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.1.4.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  tencoder.3.dconv.layers.1.6.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  tdecoder.0.conv_tr.weight  with shape:  (384, 192, 8)  , dtype:  float16
+Processing variable:  tdecoder.0.conv_tr.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tdecoder.0.rewrite.weight  with shape:  (768, 384, 3)  , dtype:  float16
+Processing variable:  tdecoder.0.rewrite.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.0.0.weight  with shape:  (48, 384, 3)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.0.0.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.0.1.weight  with shape:  (48,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.0.1.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.0.3.weight  with shape:  (768, 48)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.0.3.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.0.4.weight  with shape:  (768,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.0.4.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.0.6.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.1.0.weight  with shape:  (48, 384, 3)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.1.0.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.1.1.weight  with shape:  (48,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.1.1.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.1.3.weight  with shape:  (768, 48)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.1.3.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.1.4.weight  with shape:  (768,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.1.4.bias  with shape:  (768,)  , dtype:  float16
+Processing variable:  tdecoder.0.dconv.layers.1.6.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  tdecoder.1.conv_tr.weight  with shape:  (192, 96, 8)  , dtype:  float16
+Processing variable:  tdecoder.1.conv_tr.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tdecoder.1.rewrite.weight  with shape:  (384, 192, 3)  , dtype:  float16
+Processing variable:  tdecoder.1.rewrite.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.0.0.weight  with shape:  (24, 192, 3)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.0.0.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.0.1.weight  with shape:  (24,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.0.1.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.0.3.weight  with shape:  (384, 24)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.0.3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.0.4.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.0.4.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.0.6.scale  with shape:  (192,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.1.0.weight  with shape:  (24, 192, 3)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.1.0.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.1.1.weight  with shape:  (24,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.1.1.bias  with shape:  (24,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.1.3.weight  with shape:  (384, 24)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.1.3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.1.4.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.1.4.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  tdecoder.1.dconv.layers.1.6.scale  with shape:  (192,)  , dtype:  float16
+Processing variable:  tdecoder.2.conv_tr.weight  with shape:  (96, 48, 8)  , dtype:  float16
+Processing variable:  tdecoder.2.conv_tr.bias  with shape:  (48,)  , dtype:  float16
+Processing variable:  tdecoder.2.rewrite.weight  with shape:  (192, 96, 3)  , dtype:  float16
+Processing variable:  tdecoder.2.rewrite.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.0.0.weight  with shape:  (12, 96, 3)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.0.0.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.0.1.weight  with shape:  (12,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.0.1.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.0.3.weight  with shape:  (192, 12)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.0.3.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.0.4.weight  with shape:  (192,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.0.4.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.0.6.scale  with shape:  (96,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.1.0.weight  with shape:  (12, 96, 3)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.1.0.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.1.1.weight  with shape:  (12,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.1.1.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.1.3.weight  with shape:  (192, 12)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.1.3.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.1.4.weight  with shape:  (192,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.1.4.bias  with shape:  (192,)  , dtype:  float16
+Processing variable:  tdecoder.2.dconv.layers.1.6.scale  with shape:  (96,)  , dtype:  float16
+Processing variable:  tdecoder.3.conv_tr.weight  with shape:  (48, 12, 8)  , dtype:  float16
+Processing variable:  tdecoder.3.conv_tr.bias  with shape:  (12,)  , dtype:  float16
+Processing variable:  tdecoder.3.rewrite.weight  with shape:  (96, 48, 3)  , dtype:  float16
+Processing variable:  tdecoder.3.rewrite.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.0.0.weight  with shape:  (6, 48, 3)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.0.0.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.0.1.weight  with shape:  (6,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.0.1.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.0.3.weight  with shape:  (96, 6)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.0.3.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.0.4.weight  with shape:  (96,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.0.4.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.0.6.scale  with shape:  (48,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.1.0.weight  with shape:  (6, 48, 3)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.1.0.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.1.1.weight  with shape:  (6,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.1.1.bias  with shape:  (6,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.1.3.weight  with shape:  (96, 6)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.1.3.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.1.4.weight  with shape:  (96,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.1.4.bias  with shape:  (96,)  , dtype:  float16
+Processing variable:  tdecoder.3.dconv.layers.1.6.scale  with shape:  (48,)  , dtype:  float16
+Processing variable:  freq_emb.embedding.weight  with shape:  (512, 48)  , dtype:  float16
+Processing variable:  crosstransformer.norm_in.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.norm_in.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.norm_in_t.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.norm_in_t.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.self_attn.in_proj_weight  with shape:  (1152, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.self_attn.in_proj_bias  with shape:  (1152,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.self_attn.out_proj.weight  with shape:  (384, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.self_attn.out_proj.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.linear1.weight  with shape:  (1536, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.linear1.bias  with shape:  (1536,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.linear2.weight  with shape:  (384, 1536)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.linear2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.norm1.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.norm1.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.norm2.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.norm2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.norm_out.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.norm_out.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.gamma_1.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.0.gamma_2.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.cross_attn.in_proj_weight  with shape:  (1152, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.cross_attn.in_proj_bias  with shape:  (1152,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.cross_attn.out_proj.weight  with shape:  (384, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.cross_attn.out_proj.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.linear1.weight  with shape:  (1536, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.linear1.bias  with shape:  (1536,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.linear2.weight  with shape:  (384, 1536)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.linear2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.norm1.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.norm1.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.norm2.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.norm2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.norm3.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.norm3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.norm_out.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.norm_out.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.gamma_1.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.1.gamma_2.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.self_attn.in_proj_weight  with shape:  (1152, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.self_attn.in_proj_bias  with shape:  (1152,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.self_attn.out_proj.weight  with shape:  (384, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.self_attn.out_proj.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.linear1.weight  with shape:  (1536, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.linear1.bias  with shape:  (1536,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.linear2.weight  with shape:  (384, 1536)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.linear2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.norm1.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.norm1.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.norm2.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.norm2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.norm_out.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.norm_out.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.gamma_1.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.2.gamma_2.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.cross_attn.in_proj_weight  with shape:  (1152, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.cross_attn.in_proj_bias  with shape:  (1152,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.cross_attn.out_proj.weight  with shape:  (384, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.cross_attn.out_proj.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.linear1.weight  with shape:  (1536, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.linear1.bias  with shape:  (1536,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.linear2.weight  with shape:  (384, 1536)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.linear2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.norm1.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.norm1.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.norm2.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.norm2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.norm3.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.norm3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.norm_out.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.norm_out.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.gamma_1.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.3.gamma_2.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.self_attn.in_proj_weight  with shape:  (1152, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.self_attn.in_proj_bias  with shape:  (1152,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.self_attn.out_proj.weight  with shape:  (384, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.self_attn.out_proj.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.linear1.weight  with shape:  (1536, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.linear1.bias  with shape:  (1536,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.linear2.weight  with shape:  (384, 1536)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.linear2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.norm1.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.norm1.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.norm2.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.norm2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.norm_out.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.norm_out.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.gamma_1.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers.4.gamma_2.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.self_attn.in_proj_weight  with shape:  (1152, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.self_attn.in_proj_bias  with shape:  (1152,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.self_attn.out_proj.weight  with shape:  (384, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.self_attn.out_proj.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.linear1.weight  with shape:  (1536, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.linear1.bias  with shape:  (1536,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.linear2.weight  with shape:  (384, 1536)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.linear2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.norm1.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.norm1.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.norm2.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.norm2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.norm_out.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.norm_out.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.gamma_1.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.0.gamma_2.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.cross_attn.in_proj_weight  with shape:  (1152, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.cross_attn.in_proj_bias  with shape:  (1152,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.cross_attn.out_proj.weight  with shape:  (384, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.cross_attn.out_proj.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.linear1.weight  with shape:  (1536, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.linear1.bias  with shape:  (1536,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.linear2.weight  with shape:  (384, 1536)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.linear2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.norm1.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.norm1.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.norm2.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.norm2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.norm3.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.norm3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.norm_out.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.norm_out.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.gamma_1.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.1.gamma_2.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.self_attn.in_proj_weight  with shape:  (1152, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.self_attn.in_proj_bias  with shape:  (1152,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.self_attn.out_proj.weight  with shape:  (384, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.self_attn.out_proj.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.linear1.weight  with shape:  (1536, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.linear1.bias  with shape:  (1536,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.linear2.weight  with shape:  (384, 1536)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.linear2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.norm1.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.norm1.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.norm2.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.norm2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.norm_out.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.norm_out.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.gamma_1.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.2.gamma_2.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.cross_attn.in_proj_weight  with shape:  (1152, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.cross_attn.in_proj_bias  with shape:  (1152,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.cross_attn.out_proj.weight  with shape:  (384, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.cross_attn.out_proj.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.linear1.weight  with shape:  (1536, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.linear1.bias  with shape:  (1536,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.linear2.weight  with shape:  (384, 1536)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.linear2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.norm1.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.norm1.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.norm2.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.norm2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.norm3.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.norm3.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.norm_out.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.norm_out.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.gamma_1.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.3.gamma_2.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.self_attn.in_proj_weight  with shape:  (1152, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.self_attn.in_proj_bias  with shape:  (1152,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.self_attn.out_proj.weight  with shape:  (384, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.self_attn.out_proj.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.linear1.weight  with shape:  (1536, 384)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.linear1.bias  with shape:  (1536,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.linear2.weight  with shape:  (384, 1536)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.linear2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.norm1.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.norm1.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.norm2.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.norm2.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.norm_out.weight  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.norm_out.bias  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.gamma_1.scale  with shape:  (384,)  , dtype:  float16
+Processing variable:  crosstransformer.layers_t.4.gamma_2.scale  with shape:  (384,)  , dtype:  float16
+Done. Output file:  C:\Users\Joshua\AppData\Local\Temp\tmp8yta91py\ggml-model-htdemucs-6s-f16.bin
+
+
+=== htdemucs_6s ===
+  $ C:\Users\Joshua\AppData\Local\Programs\Python\Python311\python.exe C:\Users\Joshua\Documents\nva_stemmerizer\third_party\demucs.cpp\scripts\convert-pth-to-ggml.py C:\Users\Joshua\AppData\Local\Temp\tmp8yta91py --six-source
+  -> C:\Users\Joshua\Documents\nva_stemmerizer\resources\weights\htdemucs_6s.gguf
+
+Done. Weights in:
+  C:\Users\Joshua\Documents\nva_stemmerizer\resources\weights
+These are bundled by installer/Stemmerizer.iss when you build the installer.

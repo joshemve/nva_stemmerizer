@@ -1,0 +1,12 @@
+Copyright (c) 2026 NVA Audio. All rights reserved.
+
+This source tree is the proprietary work of NVA Audio. The compiled
+Stemmerizer plugin is licensed to end users under the End User License
+Agreement at legal/EULA.md.
+
+The source code in this repository is NOT released under an open-source
+license. Do not redistribute, fork-publish, or republish.
+
+Third-party components included or linked by this project retain their
+original licenses; see legal/NOTICE.md and legal/LICENSE-AUDIT.md for
+the per-component breakdown.

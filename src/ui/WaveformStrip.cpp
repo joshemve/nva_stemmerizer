@@ -92,9 +92,8 @@ void WaveformStrip::paint (juce::Graphics& g)
         const auto& pk = peaks[(size_t) x];
         const float yHi = midY - pk.hi * halfH;
         const float yLo = midY - pk.lo * halfH;
-        // Single line per column from low to high.
-        if (x == 0) p.startNewSubPath ((float) x, yLo);
-        p.lineTo ((float) x, yHi);
+        // One subpath per column so columns aren't connected diagonally.
+        p.startNewSubPath ((float) x, yHi);
         p.lineTo ((float) x, yLo);
     }
     g.strokePath (p, juce::PathStrokeType (1.0f));

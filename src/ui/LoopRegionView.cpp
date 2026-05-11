@@ -13,7 +13,7 @@ namespace
 LoopRegionView::LoopRegionView (dsp::Transport& t) : transport (t)
 {
     startTimerHz (30);
-    setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    setMouseCursor (juce::MouseCursor::IBeamCursor);
 }
 
 LoopRegionView::~LoopRegionView() = default;
@@ -55,11 +55,53 @@ void LoopRegionView::paint (juce::Graphics& g)
         g.setColour (Theme::col (Theme::kAccent));
         g.fillRect (xS - 1, bounds.getY(), 2.f, bounds.getHeight());
         g.fillRect (xE - 1, bounds.getY(), 2.f, bounds.getHeight());
+
+        // Edge grip ticks — two small dots stacked vertically on each handle,
+        // to advertise that the edges are draggable. Drawn slightly inset
+        // from the edge bar so they're visible against the accent line.
+        const float cy   = bounds.getCentreY();
+        const float dotR = 1.5f;
+        const float dotOff = 4.f;
+        g.setColour (juce::Colours::white.withAlpha (0.9f));
+        for (float dy : { -dotOff, dotOff })
+        {
+            g.fillEllipse (xS - dotR, cy + dy - dotR, dotR * 2.f, dotR * 2.f);
+            g.fillEllipse (xE - dotR, cy + dy - dotR, dotR * 2.f, dotR * 2.f);
+        }
     }
 
     // Playhead
     g.setColour (Theme::col (Theme::kTextPrimary));
     g.fillRect (xP - 0.5f, bounds.getY(), 1.f, bounds.getHeight());
+}
+
+void LoopRegionView::mouseMove (const juce::MouseEvent& e)
+{
+    const long long len = transport.length();
+    if (len <= 0)
+    {
+        setMouseCursor (juce::MouseCursor::NormalCursor);
+        return;
+    }
+
+    const float w  = (float) getWidth();
+    const float xS = (float) transport.loopStart() / (float) len * w;
+    const float xE = (float) transport.loopEnd()   / (float) len * w;
+
+    if (transport.isLoopOn() &&
+        (std::abs (e.x - (int) xS) <= kEdgeGrabPx
+         || std::abs (e.x - (int) xE) <= kEdgeGrabPx))
+    {
+        setMouseCursor (juce::MouseCursor::LeftRightResizeCursor);
+    }
+    else if (transport.isLoopOn() && e.x > (int) xS && e.x < (int) xE)
+    {
+        setMouseCursor (juce::MouseCursor::DraggingHandCursor);
+    }
+    else
+    {
+        setMouseCursor (juce::MouseCursor::IBeamCursor);
+    }
 }
 
 void LoopRegionView::mouseDown (const juce::MouseEvent& e)

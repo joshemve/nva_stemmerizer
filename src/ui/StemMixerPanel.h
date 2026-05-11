@@ -14,9 +14,11 @@ namespace stemmerizer::ui
 {
 
 /// The new (post-v0.1) mixer: header + N stem rows + a footer with
-/// "drag all stems out" and "play original (A/B)" toggles. Replaces the
-/// older `StemMixer` class which was just an export-toggle list.
-class StemMixerPanel : public juce::Component
+/// "drag all stems out" and a segmented "STEMS / ORIGINAL" A/B toggle.
+/// Replaces the older `StemMixer` class which was just an export-toggle
+/// list.
+class StemMixerPanel : public juce::Component,
+                       public juce::SettableTooltipClient
 {
 public:
     StemMixerPanel (dsp::StemSession& session, dsp::Transport& transport);
@@ -28,11 +30,11 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
 
 private:
     void requestDragForStem (int idx);
     void requestDragAll();
-    void toggleAB();
 
     dsp::StemSession& session;
     dsp::Transport&   transport;
@@ -40,7 +42,9 @@ private:
     std::vector<std::unique_ptr<StemRow>> rows;
 
     juce::Rectangle<int>  dragAllBounds;
-    juce::Rectangle<int>  abBounds;
+    juce::Rectangle<int>  abBounds;            // union of the two halves
+    juce::Rectangle<int>  abStemsBounds;       // left half — "STEMS"
+    juce::Rectangle<int>  abOriginalBounds;    // right half — "ORIGINAL"
 };
 
 } // namespace stemmerizer::ui

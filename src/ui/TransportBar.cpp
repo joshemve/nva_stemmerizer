@@ -5,57 +5,57 @@
 namespace stemmerizer::ui
 {
 
+namespace
+{
+    constexpr int kButtonSize = 36;
+    constexpr int kTimeWidth  = 210;
+}
+
 TransportBar::TransportBar (dsp::Transport& t) : transport (t)
 {
     addAndMakeVisible (playButton);
     addAndMakeVisible (stopButton);
     addAndMakeVisible (loopButton);
-    addAndMakeVisible (currentTime);
-    addAndMakeVisible (totalTime);
-    addAndMakeVisible (loopBadge);
+    addAndMakeVisible (timeLabel);
 
-    currentTime.setFont (Theme::mono());
-    totalTime  .setFont (Theme::mono());
-    currentTime.setColour (juce::Label::textColourId, Theme::col (Theme::kTextPrimary));
-    totalTime  .setColour (juce::Label::textColourId, Theme::col (Theme::kTextTertiary));
-    currentTime.setJustificationType (juce::Justification::centredLeft);
-    totalTime  .setJustificationType (juce::Justification::centredRight);
+    timeLabel.setFont (Theme::mono());
+    timeLabel.setColour (juce::Label::textColourId, Theme::col (Theme::kTextPrimary));
+    timeLabel.setJustificationType (juce::Justification::centred);
 
-    loopBadge.setFont (Theme::caption());
-    loopBadge.setColour (juce::Label::textColourId, Theme::col (Theme::kTextTertiary));
-    loopBadge.setJustificationType (juce::Justification::centred);
-    loopBadge.setText ("LOOP OFF", juce::dontSendNotification);
+    playButton.setTooltip ("Play / pause (Space)");
+    stopButton.setTooltip ("Stop (Esc)");
+    loopButton.setTooltip ("Toggle loop (L)");
 
-    playButton.onClick = [this]
-    {
-        if (transport.isPlaying()) transport.pause();
-        else                       transport.play();
-        playButton.setGlyph (transport.isPlaying() ? IconButton::Glyph::Pause
-                                                   : IconButton::Glyph::Play);
-        repaint();
-    };
+    playButton.onClick = [this] { togglePlay(); };
     stopButton.onClick = [this]
     {
         transport.stop();
         playButton.setGlyph (IconButton::Glyph::Play);
         repaint();
     };
-    loopButton.onClick = [this]
-    {
-        const bool now = ! transport.isLoopOn();
-        transport.setLoop (now);
-        loopButton.setActive (now);
-        loopBadge.setText (now ? "LOOP ON" : "LOOP OFF", juce::dontSendNotification);
-        loopBadge.setColour (juce::Label::textColourId,
-                             now ? Theme::col (Theme::kAccent)
-                                 : Theme::col (Theme::kTextTertiary));
-        repaint();
-    };
+    loopButton.onClick = [this] { toggleLoop(); };
 
     startTimerHz (30);
 }
 
 TransportBar::~TransportBar() = default;
+
+void TransportBar::togglePlay()
+{
+    if (transport.isPlaying()) transport.pause();
+    else                       transport.play();
+    playButton.setGlyph (transport.isPlaying() ? IconButton::Glyph::Pause
+                                               : IconButton::Glyph::Play);
+    repaint();
+}
+
+void TransportBar::toggleLoop()
+{
+    const bool now = ! transport.isLoopOn();
+    transport.setLoop (now);
+    loopButton.setActive (now);
+    repaint();
+}
 
 void TransportBar::timerCallback()
 {
@@ -65,8 +65,9 @@ void TransportBar::timerCallback()
     playButton.setGlyph (wantsPlay);
 
     const int sr = std::max (1, transport.sampleRate());
-    currentTime.setText (formatTime (transport.position(), sr), juce::dontSendNotification);
-    totalTime  .setText (formatTime (transport.length(),   sr), juce::dontSendNotification);
+    const auto pos = formatTime (transport.position(), sr);
+    const auto len = formatTime (transport.length(),   sr);
+    timeLabel.setText (pos + "  /  " + len, juce::dontSendNotification);
 }
 
 juce::String TransportBar::formatTime (long long sample, int sampleRate) const
@@ -92,21 +93,17 @@ void TransportBar::resized()
 {
     auto r = getLocalBounds().reduced (Theme::kPad, Theme::kPadSm);
 
-    playButton.setBounds (r.removeFromLeft (32).withSizeKeepingCentre (32, 32));
+    playButton.setBounds (r.removeFromLeft (kButtonSize).withSizeKeepingCentre (kButtonSize, kButtonSize));
     r.removeFromLeft (Theme::kPadSm);
-    stopButton.setBounds (r.removeFromLeft (32).withSizeKeepingCentre (32, 32));
-    r.removeFromLeft (Theme::kPad);
+    stopButton.setBounds (r.removeFromLeft (kButtonSize).withSizeKeepingCentre (kButtonSize, kButtonSize));
 
-    currentTime.setBounds (r.removeFromLeft (110));
-    r.removeFromLeft (Theme::kPadSm);
-
-    auto right = r.removeFromRight (32 + Theme::kPadSm + 80);
-    loopButton.setBounds (right.removeFromRight (32).withSizeKeepingCentre (32, 32));
-    right.removeFromRight (Theme::kPadSm);
-    loopBadge.setBounds (right);
-
+    // Loop button anchored to the right edge.
+    loopButton.setBounds (r.removeFromRight (kButtonSize).withSizeKeepingCentre (kButtonSize, kButtonSize));
     r.removeFromRight (Theme::kPad);
-    totalTime.setBounds (r.removeFromRight (110));
+
+    // Centered combined timestamp.
+    const int tlW = juce::jmin (kTimeWidth, r.getWidth());
+    timeLabel.setBounds (r.withSizeKeepingCentre (tlW, r.getHeight()));
 }
 
 } // namespace stemmerizer::ui

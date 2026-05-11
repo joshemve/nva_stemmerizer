@@ -9,8 +9,9 @@
 namespace stemmerizer::ui
 {
 
-/// Play / pause / stop / loop buttons + time display + (if not provided
-/// by an external LoopRegionView) a thin scrub bar.
+/// Play / pause / stop / loop buttons + a single combined time display
+/// (position / length). The loop region itself is drawn by LoopRegionView,
+/// so this bar stays compact.
 class TransportBar : public juce::Component, private juce::Timer
 {
 public:
@@ -19,6 +20,14 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+
+    // Toggle the loop state and update the loop button's active highlight.
+    // Exposed so the editor can wire a keyboard shortcut without depending
+    // on the internal button.
+    void toggleLoop();
+
+    // Pulse the play/pause toggle from outside (keyboard shortcut).
+    void togglePlay();
 
 private:
     void timerCallback() override;
@@ -30,9 +39,7 @@ private:
     IconButton stopButton  { IconButton::Glyph::Stop  };
     IconButton loopButton  { IconButton::Glyph::Reload };
 
-    juce::Label currentTime;
-    juce::Label totalTime;
-    juce::Label loopBadge;
+    juce::Label timeLabel;
 };
 
 } // namespace stemmerizer::ui

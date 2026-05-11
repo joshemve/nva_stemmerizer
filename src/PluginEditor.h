@@ -24,6 +24,9 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    // Keyboard transport — Space / Esc / L.
+    bool keyPressed (const juce::KeyPress&) override;
+
 private:
     void timerCallback() override;
     void onFilesDropped (const juce::Array<juce::File>&);
@@ -38,24 +41,68 @@ private:
     // ---- Header ----
     juce::Label    titleLabel    { {}, "STEMMERIZER" };
     juce::Label    versionLabel;
-    ui::IconButton settingsButton { ui::IconButton::Glyph::Gear   };
+    // NOTE: settingsButton is intentionally not instantiated/added yet — no
+    // settings panel exists. Re-enable here and in PluginEditor.cpp once a
+    // settings sheet is built.
     ui::IconButton folderButton   { ui::IconButton::Glyph::Folder };
 
-    // ---- Left column: drop / settings / job queue ----
+    // ---- Left column: settings / drop / job queue ----
     ui::DropZone   dropZone;
     juce::ComboBox modelSelector;
     juce::ComboBox formatSelector;
     juce::Label    modelLabel  { {}, "model"  };
     juce::Label    formatLabel { {}, "format" };
     juce::Label    outputLabel { {}, "output folder" };
-    juce::Label    outputPath;
-    juce::TextButton chooseOutput { "Choose..." };
+    // outputPath is a clickable label — see PathLabel below.
     ui::JobList    jobList;
 
     // ---- Right column: in-plugin player ----
     ui::TransportBar    transport;
     ui::LoopRegionView  loopRegion;
     ui::StemMixerPanel  mixer;
+
+    // ---------------------------------------------------------------
+    // Tiny clickable label that routes mouseUp to a callback. Lives
+    // inside the editor TU so we don't need a separate component pair.
+    // Used to make the output-folder path itself the affordance, rather
+    // than carrying a separate "Choose..." button.
+    // ---------------------------------------------------------------
+    class PathLabel : public juce::Label
+    {
+    public:
+        std::function<void()> onClicked;
+        PathLabel()
+        {
+            setMouseCursor (juce::MouseCursor::PointingHandCursor);
+            setInterceptsMouseClicks (true, false);
+        }
+        void mouseEnter (const juce::MouseEvent&) override
+        {
+            hovered = true;
+            applyColours();
+        }
+        void mouseExit (const juce::MouseEvent&) override
+        {
+            hovered = false;
+            applyColours();
+        }
+        void mouseUp (const juce::MouseEvent& e) override
+        {
+            if (! e.mouseWasDraggedSinceMouseDown() && onClicked) onClicked();
+        }
+        void setBaseColour (juce::Colour c) { baseColour = c; applyColours(); }
+    private:
+        void applyColours()
+        {
+            setColour (juce::Label::textColourId,
+                       hovered ? baseColour.brighter (0.35f) : baseColour);
+            repaint();
+        }
+        juce::Colour baseColour { juce::Colours::white };
+        bool hovered { false };
+    };
+
+    PathLabel outputPath;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (StemmerizerEditor)
 };

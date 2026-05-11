@@ -70,7 +70,11 @@ namespace Theme
 
     inline constexpr int kPad   = 16;
     inline constexpr int kPadSm = 8;
-    inline constexpr int kGap   = 12;
+    inline constexpr int kGap   = 12;   // spacing between major section groups
+
+    // UTF-8 middle dot, used in label separators ("WAV \xc2\xb7 24-bit", etc.).
+    // Kept here so usage stays consistent across panels.
+    inline constexpr const char* kMidDot = " \xc2\xb7 ";
 
     inline constexpr int kRowHeight    = 44;
     inline constexpr int kHeaderHeight = 56;

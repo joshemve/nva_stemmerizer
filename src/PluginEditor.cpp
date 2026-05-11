@@ -9,6 +9,12 @@ namespace
 
     constexpr int kWindowWidth  = 1180;
     constexpr int kWindowHeight = 760;
+
+    // Compact settings strip height (label row + control row).
+    constexpr int kSettingsStripH = 64;
+    // When the window is narrow, stack settings into two rows.
+    constexpr int kSettingsStripH2Row = 64 + 64 + ui::Theme::kPadSm;
+    constexpr int kStackBelowPx = 1280;  // window width threshold for stacking
 }
 
 StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
@@ -23,6 +29,9 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
     setResizeLimits (1000, 620, 2400, 1500);
     setSize (kWindowWidth, kWindowHeight);
 
+    // Allow keyboard transport shortcuts to land here.
+    setWantsKeyboardFocus (true);
+
     // ---- header ----
     titleLabel.setFont (ui::Theme::heading());
     titleLabel.setColour (juce::Label::textColourId, col (ui::Theme::kTextPrimary));
@@ -36,14 +45,13 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
     addAndMakeVisible (versionLabel);
 
     addAndMakeVisible (folderButton);
-    addAndMakeVisible (settingsButton);
     folderButton.setTooltip ("Reveal output folder");
     folderButton.onClick = [this]
     {
         const juce::File f (processor.state().getProperty ("outputDir").toString());
         if (f.isDirectory()) f.revealToUser();
     };
-    settingsButton.setTooltip ("Settings");
+    // settingsButton intentionally omitted — no settings sheet exists yet.
 
     // ---- drop zone ----
     addAndMakeVisible (dropZone);
@@ -70,9 +78,9 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
     modelLabel.setColour (juce::Label::textColourId, col (ui::Theme::kTextSecondary));
     addAndMakeVisible (modelLabel);
 
-    modelSelector.addItem ("4-Stem  |  fast",            1);
-    modelSelector.addItem ("4-Stem  |  high quality",    2);
-    modelSelector.addItem ("6-Stem  |  +guitar/piano",   3);
+    modelSelector.addItem ("4-stem \xc2\xb7 fast",                  1);
+    modelSelector.addItem ("4-stem \xc2\xb7 high quality",          2);
+    modelSelector.addItem ("6-stem \xc2\xb7 +guitar / piano",       3);
     {
         const auto curr = processor.state().getProperty ("model").toString();
         modelSelector.setSelectedId (curr == "htdemucs_ft" ? 2 : curr == "htdemucs_6s" ? 3 : 1,
@@ -84,6 +92,7 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
         const char* key = id == 2 ? "htdemucs_ft" : id == 3 ? "htdemucs_6s" : "htdemucs";
         processor.state().setProperty ("model", key, nullptr);
     };
+    modelSelector.setTooltip ("Choose stem split model");
     addAndMakeVisible (modelSelector);
 
     // ---- format selector ----
@@ -91,11 +100,11 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
     formatLabel.setColour (juce::Label::textColourId, col (ui::Theme::kTextSecondary));
     addAndMakeVisible (formatLabel);
 
-    formatSelector.addItem ("WAV  |  24-bit",    1);
-    formatSelector.addItem ("WAV  |  16-bit",    2);
-    formatSelector.addItem ("WAV  |  32f",       3);
-    formatSelector.addItem ("FLAC",              4);
-    formatSelector.addItem ("MP3  |  add-on",    5);
+    formatSelector.addItem ("WAV \xc2\xb7 24-bit",         1);
+    formatSelector.addItem ("WAV \xc2\xb7 16-bit",         2);
+    formatSelector.addItem ("WAV \xc2\xb7 32-bit float",   3);
+    formatSelector.addItem ("FLAC",                        4);
+    formatSelector.addItem ("MP3 \xc2\xb7 add-on",         5);
     formatSelector.setSelectedId (1, juce::dontSendNotification);
     formatSelector.onChange = [this]
     {
@@ -110,6 +119,7 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
         }
         processor.state().setProperty ("exportFormat", k, nullptr);
     };
+    formatSelector.setTooltip ("Output audio format");
     addAndMakeVisible (formatSelector);
 
     // ---- output folder ----
@@ -118,14 +128,13 @@ StemmerizerEditor::StemmerizerEditor (StemmerizerProcessor& p)
     addAndMakeVisible (outputLabel);
 
     outputPath.setFont (ui::Theme::mono());
-    outputPath.setColour (juce::Label::textColourId, col (ui::Theme::kTextPrimary));
+    outputPath.setBaseColour (col (ui::Theme::kTextPrimary));
     outputPath.setMinimumHorizontalScale (1.f);
     outputPath.setText (processor.state().getProperty ("outputDir").toString(),
                         juce::dontSendNotification);
+    outputPath.setTooltip (processor.state().getProperty ("outputDir").toString());
+    outputPath.onClicked = [this] { browseOutputDir(); };
     addAndMakeVisible (outputPath);
-
-    chooseOutput.onClick = [this] { browseOutputDir(); };
-    addAndMakeVisible (chooseOutput);
 
     addAndMakeVisible (jobList);
     jobList.setQueue (&processor.jobQueue());
@@ -158,6 +167,27 @@ void StemmerizerEditor::onSessionChanged()
     repaint();
 }
 
+bool StemmerizerEditor::keyPressed (const juce::KeyPress& k)
+{
+    if (k == juce::KeyPress::spaceKey)
+    {
+        transport.togglePlay();
+        return true;
+    }
+    if (k == juce::KeyPress::escapeKey)
+    {
+        processor.transport().stop();
+        return true;
+    }
+    if (k.getTextCharacter() == 'l' || k.getTextCharacter() == 'L'
+        || k.getKeyCode() == 'L')
+    {
+        transport.toggleLoop();
+        return true;
+    }
+    return false;
+}
+
 void StemmerizerEditor::paint (juce::Graphics& g)
 {
     g.fillAll (col (ui::Theme::kBackground));
@@ -183,9 +213,7 @@ void StemmerizerEditor::resized()
     auto header = r.removeFromTop (ui::Theme::kHeaderHeight).reduced (ui::Theme::kPad, 0);
     titleLabel.setBounds   (header.removeFromLeft (160).withTrimmedTop (16).withTrimmedBottom (16));
     versionLabel.setBounds (header.removeFromLeft (60).withTrimmedTop (20).withTrimmedBottom (16));
-    settingsButton.setBounds (header.removeFromRight (36).withSizeKeepingCentre (28, 28));
-    header.removeFromRight (8);
-    folderButton.setBounds   (header.removeFromRight (36).withSizeKeepingCentre (28, 28));
+    folderButton.setBounds (header.removeFromRight (36).withSizeKeepingCentre (28, 28));
 
     // ---- body ----
     r.reduce (ui::Theme::kPad, ui::Theme::kPad);
@@ -194,46 +222,89 @@ void StemmerizerEditor::resized()
     r.removeFromLeft (ui::Theme::kPad);
     auto right = r;
 
-    // Left: drop zone (top, large), then settings (model/format/output),
-    // then job queue (bottom).
+    // ---- Left column: settings (top, compact) → drop zone (middle, hero)
+    //                    → job queue (bottom).
     {
-        auto controlsAndJobs = left.removeFromBottom (340);
-        left.removeFromBottom (ui::Theme::kPad);
+        // Decide between a single-row strip and a stacked two-row strip.
+        const bool stack = getWidth() < kStackBelowPx;
+        const int stripH = stack ? kSettingsStripH2Row : kSettingsStripH;
+
+        auto strip = left.removeFromTop (stripH);
+        left.removeFromTop (ui::Theme::kGap);
+
+        // Job queue at the bottom.
+        auto jobs = left.removeFromBottom (300);
+        left.removeFromBottom (ui::Theme::kGap);
+        jobList.setBounds (jobs);
+
+        // Drop zone fills the middle — visual hero.
         dropZone.setBounds (left);
 
-        auto settingsArea = controlsAndJobs.removeFromTop (180);
-        controlsAndJobs.removeFromTop (ui::Theme::kPad);
-        jobList.setBounds (controlsAndJobs);
+        // --- Settings strip layout ---
+        constexpr int kLabelH = 14;
+        constexpr int kCtrlH  = 38;
+        constexpr int kGapY   = 4;
 
-        auto row = settingsArea.removeFromTop (66);
-        auto modelArea  = row.removeFromLeft (row.getWidth() / 2 - ui::Theme::kPadSm);
-        row.removeFromLeft (ui::Theme::kPad);
-        auto formatArea = row;
+        if (! stack)
+        {
+            // One row, three inline groups: model | format | output (wide).
+            const int totalW = strip.getWidth();
+            const int gap    = ui::Theme::kPad;
 
-        modelLabel .setBounds (modelArea.removeFromTop (18));
-        modelArea.removeFromTop (4);
-        modelSelector.setBounds (modelArea.removeFromTop (38));
+            // ~22% model, ~22% format, rest output.
+            const int modelW  = juce::jmax (160, totalW * 22 / 100);
+            const int formatW = juce::jmax (160, totalW * 22 / 100);
+            const int outW    = totalW - modelW - formatW - gap * 2;
 
-        formatLabel.setBounds (formatArea.removeFromTop (18));
-        formatArea.removeFromTop (4);
-        formatSelector.setBounds (formatArea.removeFromTop (38));
+            auto modelArea  = strip.removeFromLeft (modelW);
+            strip.removeFromLeft (gap);
+            auto formatArea = strip.removeFromLeft (formatW);
+            strip.removeFromLeft (gap);
+            auto outArea    = strip.withWidth (outW);
 
-        settingsArea.removeFromTop (ui::Theme::kPad);
-        auto outRow = settingsArea.removeFromTop (66);
-        outputLabel.setBounds (outRow.removeFromTop (18));
-        outRow.removeFromTop (4);
-        auto outControls = outRow.removeFromTop (38);
-        chooseOutput.setBounds (outControls.removeFromRight (110));
-        outControls.removeFromRight (ui::Theme::kPadSm);
-        outputPath.setBounds (outControls);
+            const auto place = [&] (juce::Rectangle<int> area, juce::Label& lbl, juce::Component& ctrl)
+            {
+                lbl.setBounds (area.removeFromTop (kLabelH));
+                area.removeFromTop (kGapY);
+                ctrl.setBounds (area.removeFromTop (kCtrlH));
+            };
+
+            place (modelArea,  modelLabel,  modelSelector);
+            place (formatArea, formatLabel, formatSelector);
+            place (outArea,    outputLabel, outputPath);
+        }
+        else
+        {
+            // Stacked: row 1 = model + format, row 2 = output folder.
+            auto row1 = strip.removeFromTop (kSettingsStripH);
+            strip.removeFromTop (ui::Theme::kPadSm);
+            auto row2 = strip;
+
+            const int half = (row1.getWidth() - ui::Theme::kPad) / 2;
+            auto modelArea  = row1.removeFromLeft (half);
+            row1.removeFromLeft (ui::Theme::kPad);
+            auto formatArea = row1;
+
+            modelLabel .setBounds (modelArea.removeFromTop (kLabelH));
+            modelArea.removeFromTop (kGapY);
+            modelSelector.setBounds (modelArea.removeFromTop (kCtrlH));
+
+            formatLabel.setBounds (formatArea.removeFromTop (kLabelH));
+            formatArea.removeFromTop (kGapY);
+            formatSelector.setBounds (formatArea.removeFromTop (kCtrlH));
+
+            outputLabel.setBounds (row2.removeFromTop (kLabelH));
+            row2.removeFromTop (kGapY);
+            outputPath.setBounds (row2.removeFromTop (kCtrlH));
+        }
     }
 
-    // Right: transport (top), loop region (under), mixer (rest).
+    // ---- Right column: transport (top), loop strip, mixer fills the rest. ----
     {
-        transport .setBounds (right.removeFromTop (56));
+        transport.setBounds (right.removeFromTop (56));
         right.removeFromTop (ui::Theme::kPadSm);
-        loopRegion.setBounds (right.removeFromTop (28));
-        right.removeFromTop (ui::Theme::kPad);
+        loopRegion.setBounds (right.removeFromTop (40));
+        right.removeFromTop (ui::Theme::kGap);
         mixer.setBounds (right);
     }
 }
@@ -263,23 +334,20 @@ void StemmerizerEditor::enqueueFile (const juce::File& f)
     const auto weightsDir = processor.resolveWeightsDir().getFullPathName().toStdString();
     if (! processor.jobQueue().ensureModel (weightsDir, job.options.model, err))
     {
-        const juce::String shownDir = weightsDir.empty()
-            ? juce::String ("(not found in any expected location)")
-            : juce::String (weightsDir);
+        // Keep the gritty diagnostic in the log/console only — end users
+        // shouldn't see python commands or a CDN URL in an alert.
+        DBG ("Stemmerizer: weights missing. searched=\""
+             << juce::String (weightsDir)
+             << "\" details=" << juce::String (err));
 
         const juce::String body =
-            juce::String ("Stemmerizer needs the AI model weights, and they aren't installed yet.\n\n"
-                          "To get them, run this once from the project root:\n\n"
-                          "    python scripts/fetch_weights.py --all\n\n"
-                          "First run downloads ~1.2 GB from Meta's public CDN and converts to "
-                          "~270 MB of ggml in resources/weights/. Then restart the plugin.\n\n"
-                          "Searched location:\n  ")
-            + shownDir
-            + juce::String ("\n\nDetails: ") + juce::String (err);
+            "Stemmerizer needs its AI models installed before it can split audio.\n\n"
+            "The models are about 270 MB and only need to be downloaded once.\n"
+            "Please contact support or re-run the installer to fetch them.";
 
         juce::AlertWindow::showAsync (
             juce::MessageBoxOptions()
-                .withTitle ("Model weights not installed yet")
+                .withTitle ("AI models not installed")
                 .withMessage (body)
                 .withButton ("OK"),
             nullptr);
@@ -302,6 +370,7 @@ void StemmerizerEditor::browseOutputDir()
         {
             processor.state().setProperty ("outputDir", r.getFullPathName(), nullptr);
             outputPath.setText (r.getFullPathName(), juce::dontSendNotification);
+            outputPath.setTooltip (r.getFullPathName());
         }
     });
 }

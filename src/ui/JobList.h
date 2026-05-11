@@ -10,9 +10,9 @@ namespace stemmerizer::ui
 
 /// Queue panel: header + scrollable list of jobs. Each row shows filename,
 /// state, progress bar, and a context action (cancel for active jobs;
-/// "reveal" for done jobs). Rendered with direct paint to keep allocations
-/// down — no per-row child components.
-class JobList : public juce::Component
+/// "reveal" / "dismiss" for finished jobs). Rendered with direct paint to
+/// keep allocations down — no per-row child components.
+class JobList : public juce::Component, public juce::SettableTooltipClient
 {
 public:
     JobList();
@@ -26,6 +26,7 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
 private:
     struct RowState
@@ -39,13 +40,16 @@ private:
         float                progress { 0.f };
         juce::Rectangle<int> bounds;
         juce::Rectangle<int> actionBounds;
+        juce::Rectangle<int> secondaryActionBounds; // empty when unused
     };
 
     void rebuildSnapshot();
+    void clampScroll();
 
     dsp::JobQueue*        queue { nullptr };
     std::vector<RowState> snapshot;
     int hoverRow { -1 };
+    int scrollY  { 0 };
 };
 
 } // namespace stemmerizer::ui

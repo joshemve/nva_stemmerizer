@@ -9,23 +9,49 @@ DropZone::DropZone()
 {
     setMouseCursor (juce::MouseCursor::PointingHandCursor);
     setInterceptsMouseClicks (true, false);
+    setTooltip ("Drop audio files or click to browse");
 }
 
 void DropZone::tick()
 {
-    constexpr float kStep = 0.018f;
-
-    pulse += 0.015f;
-    if (pulse > juce::MathConstants<float>::twoPi) pulse -= juce::MathConstants<float>::twoPi;
+    // Only animate the idle pulse when the user is actually engaged with the
+    // zone, OR when the eased glow factors haven't yet settled back to zero.
+    // When nothing is happening we skip both the phase advance and the
+    // repaint entirely so the editor isn't hammering 30 Hz redraws for
+    // a static panel.
+    const bool isAnimating = hovered || draggingOver
+                          || hoverGlow > 0.01f || dragGlow > 0.01f;
 
     const float targetHover = hovered      ? 1.f : 0.f;
     const float targetDrag  = draggingOver ? 1.f : 0.f;
 
-    hoverGlow += (targetHover - hoverGlow) * 0.18f;
-    dragGlow  += (targetDrag  - dragGlow)  * 0.25f;
+    const float prevHoverGlow = hoverGlow;
+    const float prevDragGlow  = dragGlow;
+    const float prevPulse     = pulse;
 
-    juce::ignoreUnused (kStep);
-    repaint();
+    if (isAnimating)
+    {
+        pulse += 0.015f;
+        if (pulse > juce::MathConstants<float>::twoPi)
+            pulse -= juce::MathConstants<float>::twoPi;
+
+        hoverGlow += (targetHover - hoverGlow) * 0.18f;
+        dragGlow  += (targetDrag  - dragGlow)  * 0.25f;
+    }
+    else
+    {
+        // Snap residuals fully to zero so we don't keep waking up over noise.
+        hoverGlow = 0.f;
+        dragGlow  = 0.f;
+    }
+
+    constexpr float kEps = 0.005f;
+    const bool changed = std::abs (hoverGlow - prevHoverGlow) > kEps
+                      || std::abs (dragGlow  - prevDragGlow)  > kEps
+                      || (isAnimating && std::abs (pulse - prevPulse) > kEps);
+
+    if (changed)
+        repaint();
 }
 
 void DropZone::paint (juce::Graphics& g)
@@ -71,11 +97,6 @@ void DropZone::paint (juce::Graphics& g)
     {
         const float iconR = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.13f;
         juce::Path arc;
-        const auto rectFor = [&](float r0)
-        {
-            return juce::Rectangle<float> (centre.getX() - r0, centre.getY() - r0 - 30.f,
-                                           r0 * 2.f, r0 * 2.f);
-        };
 
         const auto baseColor = Theme::col (Theme::kAccent).withAlpha (0.85f);
 
@@ -102,17 +123,11 @@ void DropZone::paint (juce::Graphics& g)
                 bounds.withTrimmedTop (bounds.getHeight() * 0.55f).withHeight (40),
                 juce::Justification::centred);
 
-    // Subtitle
+    // Caption — formats and click-to-browse hint combined onto one line.
     g.setColour (Theme::col (Theme::kTextSecondary));
-    g.setFont (Theme::body());
-    g.drawText ("WAV  /  FLAC  /  MP3  /  AIFF  /  OGG",
-                bounds.withTrimmedTop (bounds.getHeight() * 0.55f + 44).withHeight (22),
-                juce::Justification::centred);
-
-    g.setColour (Theme::col (Theme::kTextTertiary));
     g.setFont (Theme::caption());
-    g.drawText ("or click to browse",
-                bounds.withTrimmedTop (bounds.getHeight() * 0.55f + 70).withHeight (20),
+    g.drawText ("WAV \xc2\xb7 FLAC \xc2\xb7 MP3 \xc2\xb7 AIFF \xc2\xb7 OGG  \xe2\x80\x94  or click to browse",
+                bounds.withTrimmedTop (bounds.getHeight() * 0.55f + 46).withHeight (22),
                 juce::Justification::centred);
 }
 

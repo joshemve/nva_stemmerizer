@@ -9,17 +9,24 @@ namespace
 {
     constexpr int kRowH       = 56;
     constexpr int kFaderW     = 110;
-    constexpr int kSquareBtn  = 26;
+    constexpr int kSquareBtn  = 32;
 
-    /// Fader position math. Linear gain in [0..2] mapped to a vertical-ish
-    /// horizontal slider where 0 = -inf, 1 = unity, 2 = +6 dB.
+    /// Logarithmic fader position math.
+    ///   fader 0%   -> -inf dB (gain 0)
+    ///   fader 10%  -> ~-60 dB
+    ///   fader 60/66 (~90.9%) -> 0 dB (unity, gain 1.0)
+    ///   fader 100% -> +6 dB
     inline float gainToFraction (float gainLinear)
     {
-        return juce::jlimit (0.f, 1.f, gainLinear * 0.5f);
+        if (gainLinear <= 0.0001f) return 0.f;
+        const float db = 20.f * std::log10 (gainLinear);
+        return juce::jlimit (0.f, 1.f, (db + 60.f) / 66.f);
     }
     inline float fractionToGain (float frac)
     {
-        return juce::jlimit (0.f, 2.f, frac * 2.f);
+        if (frac <= 0.001f) return 0.f;
+        const float db = frac * 66.f - 60.f;
+        return std::pow (10.f, db / 20.f);
     }
     inline juce::String dbLabel (float gain)
     {
@@ -34,7 +41,6 @@ StemRow::StemRow (dsp::StemSession& s, dsp::Transport& t, int stemIdx)
 {
     addAndMakeVisible (waveform);
     waveform.setColour (Theme::stemColor (idx, session.mixState().stemCount()));
-    setMouseCursor (juce::MouseCursor::PointingHandCursor);
 }
 
 void StemRow::setStemIndex (int i)
@@ -135,11 +141,11 @@ void StemRow::drawMuteSolo (juce::Graphics& g)
     const bool muted  = slot.muted.load();
     const bool soloed = slot.soloed.load();
 
-    // M
-    g.setColour (muted ? Theme::col (Theme::kError).withAlpha (0.85f)
+    // M — neutral gray when muted (red is reserved for destructive actions)
+    g.setColour (muted ? Theme::col (Theme::kTextSecondary)
                        : Theme::col (Theme::kSurface));
     g.fillRoundedRectangle (muteBounds.toFloat(), 6.f);
-    g.setColour (muted ? Theme::col (Theme::kError) : Theme::col (Theme::kBorder));
+    g.setColour (muted ? Theme::col (Theme::kTextSecondary) : Theme::col (Theme::kBorder));
     g.drawRoundedRectangle (muteBounds.toFloat(), 6.f, 1.f);
     g.setColour (muted ? juce::Colours::white : Theme::col (Theme::kTextSecondary));
     g.setFont (Theme::caption().boldened());
@@ -170,8 +176,9 @@ void StemRow::drawFader (juce::Graphics& g)
     g.setColour (Theme::col (Theme::kBorderStrong));
     g.fillRoundedRectangle (trackR, trackH * 0.5f);
 
-    // Unity tick at frac=0.5
-    const float unityX = track.getX() + track.getWidth() * 0.5f;
+    // Unity tick at frac=60/66 (where log-scale gain = 1.0)
+    const float unityFrac = 60.f / 66.f;
+    const float unityX = track.getX() + track.getWidth() * unityFrac;
     g.setColour (Theme::col (Theme::kBorder));
     g.drawLine (unityX, track.getY() + 2, unityX, track.getBottom() - 2, 1.f);
 
@@ -183,7 +190,7 @@ void StemRow::drawFader (juce::Graphics& g)
 
     // Thumb
     const float thumbX = track.getX() + fillW;
-    const float thumbR = 7.f;
+    const float thumbR = 9.f;
     g.setColour (juce::Colours::white);
     g.fillEllipse (thumbX - thumbR, midY - thumbR, thumbR * 2, thumbR * 2);
     g.setColour (Theme::stemColor (idx, session.mixState().stemCount()));
@@ -252,6 +259,51 @@ void StemRow::mouseDrag (const juce::MouseEvent& e)
         if (onDragRequested) onDragRequested (idx);
         return;
     }
+}
+
+void StemRow::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    if (faderBounds.contains (e.getPosition()))
+    {
+        auto& slot = session.mixState().slot (idx);
+        slot.gain.store (1.0f);
+        repaint();
+        return;
+    }
+}
+
+void StemRow::mouseWheelMove (const juce::MouseEvent& e,
+                              const juce::MouseWheelDetails& wheel)
+{
+    if (! faderBounds.contains (e.getPosition())) return;
+    if (wheel.deltaY == 0.f) return;
+
+    auto& slot = session.mixState().slot (idx);
+    const float currentGain = slot.gain.load();
+    // Treat -inf as -60 dB for stepping purposes so the wheel can pull
+    // the gain back out of "off".
+    const float currentDb = currentGain <= 0.0001f
+                                ? -60.f
+                                : 20.f * std::log10 (currentGain);
+    const float step = wheel.deltaY > 0.f ? 1.f : -1.f;
+    const float newDb = juce::jlimit (-60.f, 6.f, currentDb + step);
+    const float newGain = newDb <= -60.f + 0.0001f ? 0.f
+                                                   : std::pow (10.f, newDb / 20.f);
+    slot.gain.store (newGain);
+    repaint();
+}
+
+void StemRow::mouseMove (const juce::MouseEvent& e)
+{
+    const auto pos = e.getPosition();
+    if (muteBounds.contains (pos) || soloBounds.contains (pos) || dragBounds.contains (pos))
+        setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    else if (faderBounds.contains (pos))
+        setMouseCursor (juce::MouseCursor::LeftRightResizeCursor);
+    else if (waveBounds.contains (pos))
+        setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    else
+        setMouseCursor (juce::MouseCursor::NormalCursor);
 }
 
 } // namespace stemmerizer::ui

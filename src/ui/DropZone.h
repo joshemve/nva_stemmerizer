@@ -13,7 +13,8 @@ namespace stemmerizer::ui
 /// a "click to browse" affordance. Designed to be the visual centerpiece of
 /// the plugin's empty state.
 class DropZone : public juce::Component,
-                 public juce::FileDragAndDropTarget
+                 public juce::FileDragAndDropTarget,
+                 public juce::SettableTooltipClient
 {
 public:
     DropZone();

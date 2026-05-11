@@ -1,5 +1,6 @@
 #include "JobList.h"
 
+#include <algorithm>
 #include <filesystem>
 
 namespace stemmerizer::ui
@@ -7,34 +8,70 @@ namespace stemmerizer::ui
 
 namespace
 {
-    constexpr int kRowH      = 64;
+    constexpr int kRowH      = 56;
     constexpr int kRowGap    = 8;
     constexpr int kHeaderH   = 28;
 
-    juce::String stateLabel (dsp::Job::State s)
+    // Each action button is 32x32 with 4 px between adjacent buttons. The
+    // widest action area carries two buttons (done: reveal + dismiss), so we
+    // reserve enough horizontal space on the right edge for both plus a small
+    // breathing margin.
+    constexpr int kBtnSize       = 32;
+    constexpr int kBtnSpacing    = 4;
+    constexpr int kActionGutter  = (kBtnSize * 2) + kBtnSpacing + 8; // 76 px
+
+    // Middle dot separator (U+00B7) used in the subtext line.
+    static const juce::String kMiddleDot = juce::String::fromUTF8 (" \xc2\xb7 ");
+
+    juce::String subtext (const auto& rs)
     {
-        switch (s)
+        switch (rs.state)
         {
-            case dsp::Job::State::Queued:    return "queued";
-            case dsp::Job::State::Running:   return "running";
-            case dsp::Job::State::Done:      return "done";
-            case dsp::Job::State::Failed:    return "failed";
-            case dsp::Job::State::Cancelled: return "cancelled";
+            case dsp::Job::State::Queued:
+                return "queued";
+            case dsp::Job::State::Running:
+                return rs.stage.isNotEmpty()
+                           ? juce::String ("running") + kMiddleDot + rs.stage
+                           : juce::String ("running");
+            case dsp::Job::State::Done:
+                return rs.elapsed.isNotEmpty()
+                           ? juce::String ("done") + kMiddleDot + rs.elapsed
+                           : juce::String ("done");
+            case dsp::Job::State::Failed:
+                return "failed";
+            case dsp::Job::State::Cancelled:
+                return "cancelled";
         }
-        return "?";
+        return {};
     }
 
-    juce::Colour stateColor (dsp::Job::State s)
+    void drawXIcon (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour stroke)
     {
-        switch (s)
-        {
-            case dsp::Job::State::Queued:    return Theme::col (Theme::kTextSecondary);
-            case dsp::Job::State::Running:   return Theme::col (Theme::kAccent);
-            case dsp::Job::State::Done:      return Theme::col (Theme::kSuccess);
-            case dsp::Job::State::Failed:    return Theme::col (Theme::kError);
-            case dsp::Job::State::Cancelled: return Theme::col (Theme::kTextTertiary);
-        }
-        return Theme::col (Theme::kTextTertiary);
+        const float cx = r.getCentreX();
+        const float cy = r.getCentreY();
+        juce::Path p;
+        p.startNewSubPath (cx - 5, cy - 5);
+        p.lineTo          (cx + 5, cy + 5);
+        p.startNewSubPath (cx + 5, cy - 5);
+        p.lineTo          (cx - 5, cy + 5);
+        g.setColour (stroke);
+        g.strokePath (p, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved,
+                                               juce::PathStrokeType::rounded));
+    }
+
+    void drawArrowIcon (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour stroke)
+    {
+        const float cx = r.getCentreX();
+        const float cy = r.getCentreY();
+        juce::Path p;
+        p.startNewSubPath (cx - 4, cy);
+        p.lineTo          (cx + 5, cy);
+        p.startNewSubPath (cx + 1, cy - 4);
+        p.lineTo          (cx + 5, cy);
+        p.lineTo          (cx + 1, cy + 4);
+        g.setColour (stroke);
+        g.strokePath (p, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved,
+                                               juce::PathStrokeType::rounded));
     }
 }
 
@@ -69,6 +106,18 @@ void JobList::rebuildSnapshot()
                        : juce::String();
         snapshot.push_back (std::move (rs));
     }
+}
+
+void JobList::clampScroll()
+{
+    if (snapshot.empty()) { scrollY = 0; return; }
+
+    auto inner = getLocalBounds().reduced (Theme::kPad);
+    inner.removeFromTop (kHeaderH + Theme::kPad);
+
+    const int contentH = (int) snapshot.size() * (kRowH + kRowGap) - kRowGap;
+    const int maxScroll = std::max (0, contentH - inner.getHeight());
+    scrollY = juce::jlimit (0, maxScroll, scrollY);
 }
 
 void JobList::paint (juce::Graphics& g)
@@ -110,10 +159,22 @@ void JobList::paint (juce::Graphics& g)
         return;
     }
 
-    // Rows
+    inner.removeFromTop (Theme::kPad);
+
+    // Clip rows to the inner area so off-screen rows don't smear the header
+    // / panel border while scrolling.
+    juce::Graphics::ScopedSaveState saver (g);
+    g.reduceClipRegion (inner);
+
+    const auto visible = inner;
     for (size_t i = 0; i < snapshot.size(); ++i)
     {
         const auto& rs = snapshot[i];
+
+        // Skip rows that don't intersect the visible area.
+        if (rs.bounds.getBottom() < visible.getY()) continue;
+        if (rs.bounds.getY() > visible.getBottom()) break;
+
         const bool hovered = (int) i == hoverRow;
         const auto rowF = rs.bounds.toFloat();
 
@@ -122,27 +183,14 @@ void JobList::paint (juce::Graphics& g)
         g.fillRoundedRectangle (rowF, Theme::kRadiusMedium);
 
         auto inside = rs.bounds.reduced (12, 8);
-
-        // Reserve the right edge so the progress bar and stage text never
-        // slide under the action (X / reveal) button. The action button is
-        // 26 px wide and lives at right - 32; we carve out a 38 px gutter
-        // (button width + breathing room) so nothing overdraws it.
-        constexpr int kActionGutter = 38;
+        // Reserve space on the right for up to two action buttons.
         inside.removeFromRight (kActionGutter);
 
-        // Filename + state
+        // Top line: filename only (state moved to subtext line).
         g.setColour (Theme::col (Theme::kTextPrimary));
         g.setFont (Theme::body());
-        auto topLine  = inside.removeFromTop (20);
-        auto stateArea = topLine.removeFromRight (130);
-        const auto fnArea = topLine;
-        g.drawText (rs.filename, fnArea, juce::Justification::centredLeft, true);
-
-        g.setColour (stateColor (rs.state));
-        g.setFont (Theme::caption());
-        const auto label = stateLabel (rs.state) +
-            (! rs.elapsed.isEmpty() ? "   |   " + rs.elapsed : juce::String());
-        g.drawText (label, stateArea, juce::Justification::centredRight);
+        const auto topLine = inside.removeFromTop (20);
+        g.drawText (rs.filename, topLine, juce::Justification::centredLeft, true);
 
         // Progress bar
         const auto barRow = inside.removeFromTop (8).withTrimmedTop (2).withTrimmedBottom (2);
@@ -171,52 +219,47 @@ void JobList::paint (juce::Graphics& g)
             }
         }
 
-        // Stage / output dir
+        // Subtext line (state + detail)
         g.setColour (Theme::col (Theme::kTextTertiary));
         g.setFont (Theme::caption());
         const auto bot = inside.withTrimmedTop (4);
-        const auto subText = rs.state == dsp::Job::State::Failed
-            ? juce::String ("error")
-            : (rs.state == dsp::Job::State::Done
-                  ? rs.outputDir
-                  : (rs.stage.isNotEmpty() ? rs.stage : juce::String()));
-        g.drawText (subText, bot, juce::Justification::centredLeft, true);
+        g.drawText (subtext (rs), bot, juce::Justification::centredLeft, true);
 
-        // Action button (cancel for in-progress, reveal for done)
-        const auto act = rs.actionBounds.toFloat();
-        if (rs.state == dsp::Job::State::Done ||
-            rs.state == dsp::Job::State::Running ||
-            rs.state == dsp::Job::State::Queued)
+        // Action buttons (right-justified).
+        // Active/Queued: [cancel (x)] only
+        // Done:          [reveal (->)] [dismiss (x)]
+        // Failed:        [dismiss (x)] only
+        // Cancelled:     [dismiss (x)] only
+        const bool isActive = rs.state == dsp::Job::State::Running
+                              || rs.state == dsp::Job::State::Queued;
+        const bool isDone   = rs.state == dsp::Job::State::Done;
+
+        if (isActive)
         {
-            const bool isCancel = rs.state != dsp::Job::State::Done;
-            g.setColour (isCancel ? Theme::col (Theme::kError).withAlpha (0.18f)
-                                  : Theme::col (Theme::kSurfaceHi));
+            const auto act = rs.actionBounds.toFloat();
+            g.setColour (Theme::col (Theme::kError).withAlpha (0.18f));
             g.fillRoundedRectangle (act, 6.f);
+            drawXIcon (g, act, Theme::col (Theme::kError));
+        }
+        else if (isDone)
+        {
+            const auto reveal = rs.actionBounds.toFloat();
+            g.setColour (Theme::col (Theme::kSurfaceHi));
+            g.fillRoundedRectangle (reveal, 6.f);
+            drawArrowIcon (g, reveal, Theme::col (Theme::kTextSecondary));
 
-            g.setColour (isCancel ? Theme::col (Theme::kError)
-                                  : Theme::col (Theme::kTextSecondary));
-            juce::Path p;
-            const float cx = act.getCentreX();
-            const float cy = act.getCentreY();
-            if (isCancel)
-            {
-                p.startNewSubPath (cx - 5, cy - 5);
-                p.lineTo          (cx + 5, cy + 5);
-                p.startNewSubPath (cx + 5, cy - 5);
-                p.lineTo          (cx - 5, cy + 5);
-                g.strokePath (p, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved,
-                                                       juce::PathStrokeType::rounded));
-            }
-            else
-            {
-                p.startNewSubPath (cx - 4, cy);
-                p.lineTo          (cx + 5, cy);
-                p.startNewSubPath (cx + 1, cy - 4);
-                p.lineTo          (cx + 5, cy);
-                p.lineTo          (cx + 1, cy + 4);
-                g.strokePath (p, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved,
-                                                       juce::PathStrokeType::rounded));
-            }
+            const auto dismiss = rs.secondaryActionBounds.toFloat();
+            g.setColour (Theme::col (Theme::kSurfaceHi));
+            g.fillRoundedRectangle (dismiss, 6.f);
+            drawXIcon (g, dismiss, Theme::col (Theme::kTextSecondary));
+        }
+        else
+        {
+            // Failed or Cancelled — single dismiss button.
+            const auto dismiss = rs.actionBounds.toFloat();
+            g.setColour (Theme::col (Theme::kSurfaceHi));
+            g.fillRoundedRectangle (dismiss, 6.f);
+            drawXIcon (g, dismiss, Theme::col (Theme::kTextSecondary));
         }
     }
 }
@@ -226,12 +269,35 @@ void JobList::resized()
     auto inner = getLocalBounds().reduced (Theme::kPad);
     inner.removeFromTop (kHeaderH + Theme::kPad);
 
-    int y = inner.getY();
+    clampScroll();
+
+    int y = inner.getY() - scrollY;
     for (auto& rs : snapshot)
     {
         rs.bounds = juce::Rectangle<int> (inner.getX(), y, inner.getWidth(), kRowH);
-        rs.actionBounds = juce::Rectangle<int> (rs.bounds.getRight() - 32,
-                                                rs.bounds.getY() + 18, 26, 26);
+
+        // Center the action button(s) vertically within the row.
+        const int btnY = rs.bounds.getCentreY() - kBtnSize / 2;
+        const int rightX = rs.bounds.getRight() - 4; // small inset from the row edge
+
+        const bool isDone = rs.state == dsp::Job::State::Done;
+
+        if (isDone)
+        {
+            // Two buttons: reveal (primary, leftmost) + dismiss (secondary, rightmost).
+            const int dismissX = rightX - kBtnSize;
+            const int revealX  = dismissX - kBtnSpacing - kBtnSize;
+            rs.actionBounds          = juce::Rectangle<int> (revealX,  btnY, kBtnSize, kBtnSize);
+            rs.secondaryActionBounds = juce::Rectangle<int> (dismissX, btnY, kBtnSize, kBtnSize);
+        }
+        else
+        {
+            // Single button (cancel, dismiss, or none for unknown states).
+            rs.actionBounds          = juce::Rectangle<int> (rightX - kBtnSize, btnY,
+                                                             kBtnSize, kBtnSize);
+            rs.secondaryActionBounds = {};
+        }
+
         y += kRowH + kRowGap;
     }
 }
@@ -242,39 +308,117 @@ void JobList::mouseDown (const juce::MouseEvent& e)
     const auto pos = e.getPosition();
     for (const auto& rs : snapshot)
     {
-        if (rs.actionBounds.contains (pos))
+        // Done: reveal (primary) + dismiss (secondary)
+        if (rs.state == dsp::Job::State::Done)
         {
-            if (rs.state == dsp::Job::State::Done)
+            if (rs.actionBounds.contains (pos))
             {
                 juce::File (rs.outputDir).revealToUser();
+                return;
             }
-            else if (rs.state == dsp::Job::State::Running ||
-                     rs.state == dsp::Job::State::Queued)
+            if (rs.secondaryActionBounds.contains (pos))
+            {
+                // No public dismiss API on JobQueue; cancel(id) is a no-op
+                // on terminal states, so the row stays put. This is the
+                // safest available fallback.
+                queue->cancel (rs.id);
+                return;
+            }
+        }
+        // Running / Queued: cancel
+        else if (rs.state == dsp::Job::State::Running
+                 || rs.state == dsp::Job::State::Queued)
+        {
+            if (rs.actionBounds.contains (pos))
             {
                 queue->cancel (rs.id);
+                return;
             }
-            return;
+        }
+        // Failed / Cancelled: dismiss
+        else
+        {
+            if (rs.actionBounds.contains (pos))
+            {
+                // No public dismiss API on JobQueue; cancel(id) is a no-op
+                // on terminal states. Best-effort fallback.
+                queue->cancel (rs.id);
+                return;
+            }
         }
     }
 }
 
 void JobList::mouseMove (const juce::MouseEvent& e)
 {
+    const auto pos = e.getPosition();
     int newHover = -1;
     for (size_t i = 0; i < snapshot.size(); ++i)
     {
-        if (snapshot[i].bounds.contains (e.getPosition()))
+        if (snapshot[i].bounds.contains (pos))
         {
             newHover = (int) i;
             break;
         }
     }
     if (newHover != hoverRow) { hoverRow = newHover; repaint(); }
+
+    // Cursor: pointing hand over either action button, normal elsewhere.
+    bool overAction = false;
+    for (const auto& rs : snapshot)
+    {
+        if (rs.actionBounds.contains (pos)
+            || rs.secondaryActionBounds.contains (pos))
+        {
+            overAction = true;
+            break;
+        }
+    }
+    setMouseCursor (overAction ? juce::MouseCursor::PointingHandCursor
+                               : juce::MouseCursor::NormalCursor);
+
+    // Tooltip: show output path for done rows, or stage detail for running
+    // rows. Empty string clears the tooltip.
+    juce::String tip;
+    if (newHover >= 0 && newHover < (int) snapshot.size())
+    {
+        const auto& rs = snapshot[(size_t) newHover];
+        if (rs.state == dsp::Job::State::Done)
+            tip = rs.outputDir;
+        else if (rs.state == dsp::Job::State::Running && rs.stage.isNotEmpty())
+            tip = rs.stage;
+    }
+    setTooltip (tip);
 }
 
 void JobList::mouseExit (const juce::MouseEvent&)
 {
     if (hoverRow != -1) { hoverRow = -1; repaint(); }
+    setMouseCursor (juce::MouseCursor::NormalCursor);
+    setTooltip ({});
+}
+
+void JobList::mouseWheelMove (const juce::MouseEvent&,
+                              const juce::MouseWheelDetails& wheel)
+{
+    if (snapshot.empty()) return;
+    if (wheel.deltaY == 0.f) return;
+
+    // deltaY > 0 = wheel scrolled up = content should move down (scrollY -=)
+    // Use one row's worth per "detent" so even a small delta produces visible
+    // motion; the clamp keeps us in range.
+    const float raw = -wheel.deltaY * (float) (kRowH + kRowGap);
+    int step = (int) raw;
+    if (step == 0) step = wheel.deltaY > 0.f ? -1 : 1;
+
+    const int prev = scrollY;
+    scrollY += step;
+    clampScroll();
+    if (scrollY != prev)
+    {
+        resized();
+        repaint();
+    }
 }
 
 } // namespace stemmerizer::ui
